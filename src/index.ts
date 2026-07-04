@@ -4,7 +4,7 @@ import os from 'os';
 import path from 'path';
 import dotenv from 'dotenv';
 import chalk from 'chalk';
-import ora from 'ora';
+import { Spinner } from './spinner.js';
 import { VeniceAgent } from './agent.js';
 import { loadConfig } from './config.js';
 import { saveSession, loadSession, listSessions } from './session.js';
@@ -40,12 +40,13 @@ const extraDenylist = compileExtraDenylist(config.extraDenylist);
 // which stream (thinking vs. answer) is currently printing, so section headers
 // print exactly once per switch.
 class RenderSession {
-  private spinner: ReturnType<typeof ora> | null;
+  private spinner: Spinner | null;
   private mode: 'none' | 'thinking' | 'content' = 'none';
   private thinkBuffer = '';
 
   constructor() {
-    this.spinner = ora({ text: chalk.cyan('Thinking...'), discardStdin: false }).start();
+    this.spinner = new Spinner();
+    this.spinner.start();
   }
 
   private stopSpinner() {
