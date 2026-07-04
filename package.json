@@ -1,20 +1,22 @@
 {
-  "name": "venice-agent",
+  "name": "opend-ai",
   "version": "1.0.0",
-  "description": "An uncensored, local-first CLI coding agent powered by Venice.ai — streams live reasoning, edits files, runs commands.",
+  "description": "An uncensored, local-first CLI coding agent — streams live reasoning, edits files, runs commands. Provider-agnostic, runs on any OpenAI-compatible uncensored LLM.",
   "keywords": [
     "cli",
     "ai-agent",
-    "venice-ai",
     "coding-assistant",
     "uncensored-llm",
-    "llm"
+    "llm",
+    "venice-ai",
+    "ollama",
+    "openai-compatible"
   ],
   "license": "MIT",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "venice-agent": "dist/index.js"
+    "opend": "dist/index.js"
   },
   "files": [
     "dist",
