@@ -9,7 +9,7 @@ import { VeniceAgent } from './agent.js';
 import { loadConfig } from './config.js';
 import { saveSession, loadSession, listSessions } from './session.js';
 import { compileExtraDenylist, isCatastrophic } from './denylist.js';
-import { pink, styleThinkingLine, summarizeArgs } from './render.js';
+import { pink, theme, styleThinkingLine, summarizeArgs } from './render.js';
 
 const HOME_ENV_PATH = path.join(os.homedir(), '.venice-agent', '.env');
 
@@ -60,7 +60,7 @@ class RenderSession {
   thinking(text: string) {
     this.stopSpinner();
     if (this.mode !== 'thinking') {
-      process.stdout.write('\n' + chalk.dim.italic('thinking>'));
+      process.stdout.write('\n' + theme.path.dim.italic('thinking>'));
       this.mode = 'thinking';
     }
     this.thinkBuffer += text;
@@ -95,7 +95,7 @@ class RenderSession {
     if (this.mode === 'thinking') this.flushThinking();
     const summary = summarizeArgs(name, args);
     process.stdout.write(
-      '\n\n' + chalk.yellow('⚙ ' + chalk.bold(name)) +
+      '\n\n' + theme.tool('⚙ ') + theme.tool.bold(name) +
       (summary ? ' ' + pink(summary) : '') + '\n'
     );
     this.mode = 'none';
