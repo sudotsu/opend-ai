@@ -111,6 +111,7 @@ export interface UsageTotals {
 
 export interface AgentConfig {
   apiKey: string;
+  baseUrl?: string;
   model?: string;
   posture?: Posture;
   contextTokens?: number;
@@ -126,6 +127,7 @@ export interface AgentConfig {
 
 export class VeniceAgent {
   private client: OpenAI;
+  private isVenice: boolean;
   private model: string;
   private posture: Posture;
   private contextTokens: number;
@@ -141,10 +143,12 @@ export class VeniceAgent {
   private onNotice?: (message: string) => void;
 
   constructor(config: AgentConfig) {
-    this.client = new OpenAI({
-      apiKey: config.apiKey,
-      baseURL: 'https://api.venice.ai/api/v1',
-    });
+    const baseURL = config.baseUrl || 'https://api.venice.ai/api/v1';
+    this.client = new OpenAI({ apiKey: config.apiKey, baseURL });
+    // `venice_parameters` is a Venice-only request extension. Only send it when
+    // actually talking to Venice — a stricter OpenAI-compatible server (Ollama,
+    // Together, etc.) could reject an unknown field.
+    this.isVenice = baseURL.includes('venice.ai');
     this.model = config.model || 'olafangensan-glm-4.7-flash-heretic';
     this.posture = config.posture || 'coding';
     this.contextTokens = config.contextTokens ?? 96000;
@@ -227,22 +231,26 @@ export class VeniceAgent {
   private async streamOnce(
     signal?: AbortSignal
   ): Promise<{ content: string; assembledToolCalls: any[]; aborted: boolean }> {
-    // Cast: `venice_parameters` is a Venice-only extension the OpenAI SDK types
-    // don't know about, passed straight through to the JSON request body.
+    // Base request is plain OpenAI-standard so any compatible endpoint accepts it.
+    const body: any = {
+      model: this.model,
+      messages: this.messages,
+      tools: TOOLS,
+      tool_choice: 'auto',
+      stream: true,
+      stream_options: { include_usage: true }
+    };
+    // `venice_parameters` is a Venice-only extension the OpenAI SDK types don't
+    // know about — only attach it when talking to Venice (see constructor).
+    if (this.isVenice) {
+      body.venice_parameters = {
+        disable_thinking: false,
+        strip_thinking_response: false,
+        include_venice_system_prompt: false
+      };
+    }
     const stream: any = await this.client.chat.completions.create(
-      {
-        model: this.model,
-        messages: this.messages,
-        tools: TOOLS,
-        tool_choice: 'auto',
-        stream: true,
-        stream_options: { include_usage: true },
-        venice_parameters: {
-          disable_thinking: false,
-          strip_thinking_response: false,
-          include_venice_system_prompt: false
-        }
-      } as any,
+      body,
       signal ? { signal } : undefined
     );
 

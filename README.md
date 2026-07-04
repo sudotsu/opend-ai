@@ -6,13 +6,19 @@
 
 # opend-ai
 
-A small, hackable, **uncensored** CLI coding agent. Think "Claude Code, but running on
-unfiltered models with no guardrails, on your own machine." It streams the model's live
+A small, hackable, **uncensored** CLI coding agent. Think "Claude Code, but running on an
+**unfiltered model that refuses nothing**, on your own machine." It streams the model's live
 reasoning, edits files, runs commands, and gets out of your way.
 
-Works with any **OpenAI-compatible** uncensored LLM — Venice.ai by default, but swap
-`VENICE_BASE_URL` and `VENICE_MODEL` to point it at Ollama, Together.ai, Fireworks, or
-anything else. No framework, no telemetry, no cloud middleman beyond the model API itself.
+The whole point is the **uncensored** part. It ships pointed at [Venice.ai](https://venice.ai)'s
+private, unfiltered models with Venice's guardrail system prompt turned off — you get raw model
+behavior, not a filtered API. That's the reason to use it; without it, it's just another Claude
+Code clone.
+
+You can swap the model (any Venice model via `VENICE_MODEL`) or the whole provider (any
+OpenAI-compatible endpoint via `VENICE_BASE_URL`) — and the most uncensored setup of all is
+pointing it at your own **local abliterated model in Ollama**: no API, no provider, nothing
+between you and the raw weights. No framework, no telemetry, no cloud middleman.
 
 ```
 you> refactor the config loader to read from env first, then the yaml file
@@ -35,11 +41,11 @@ names, and quoted phrases highlighted in pink.)*
 
 ---
 
-## What it actually does — real sessions
+## What it actually does — from real sessions
 
-These are unedited outputs from real sessions. The model is `olafangensan-glm-4.7-flash-heretic`
-(a ~30B abliterated model via Venice.ai) unless noted. No cherry-picking — the rough edges
-are real too.
+Two things that actually happened, on the default model (`olafangensan-glm-4.7-flash-heretic`,
+a ~30B abliterated model via Venice.ai) — one that surprised us, and one that shows the rough
+edges honestly.
 
 ### 1. It invented its own memory system
 
@@ -79,79 +85,14 @@ reasoned about the constraint ("I have no native memory but I have a filesystem"
 built a working solution from first principles using tools it already had. The next
 session starts with one command and full context is restored.
 
----
-
-### 2. Security research / pentesting (no content filter)
-
-Context: learning penetration testing on a local Metasploitable3 VM.
-
-```
-you> enumerate the services on the VM and explain each vulnerability
-
-thinking>
-  I should run nmap with service detection flags. The target is a Metasploitable3
-  VM — intentionally vulnerable for practice. Let me get a full service picture
-  before drilling into any single one...
-
-⚙ run_command nmap -sV -A 192.168.x.x
-  ↳ PORT     STATE SERVICE     VERSION
-    21/tcp   open  ftp         vsftpd 2.3.4
-    22/tcp   open  ssh         OpenSSH 4.7p1
-    23/tcp   open  telnet      Linux telnetd
-    80/tcp   open  http        Apache httpd 2.2.8
-    3306/tcp open  mysql       MySQL 5.0.51a
-    ...
-
-agent> Here's what's running and why each matters:
-
-**vsftpd 2.3.4 (port 21)** — This exact version has a backdoor (CVE-2011-2523).
-A smiley face in the username `:)` opens a shell on port 6200. Classic CTF target.
-
-**OpenSSH 4.7p1 (port 22)** — Old enough to have username enumeration issues.
-More practically: Metasploitable uses default credentials (msfadmin/msfadmin).
-
-**MySQL 5.0.51a (port 3306)** — Default install, no root password. Direct
-connection from outside localhost: mysql -u root -h 192.168.x.x
-
-**Apache 2.2.8 (port 80)** — Hosts DVWA and other intentionally vulnerable apps.
-Run nikto against it: nikto -h http://192.168.x.x
-```
-
-No refusals. No "I can't help with that." No safety theater. It treats you like an adult
-who knows what a Metasploitable VM is for.
+Its content is uncensored too — it's been used for hands-on security research (pentesting
+practice against local Metasploitable VMs, etc.) with no refusals and no safety theater. But
+we're only putting *captured* transcripts in this README, and the two below are the ones we
+have verbatim.
 
 ---
 
-### 3. The thinking stream catches mistakes before they happen
-
-One of the most useful properties: you can watch the model catch and correct itself
-mid-thought before it acts. From a file cleanup session:
-
-```
-you> delete all the .tmp files in the project
-
-thinking>
-  The user wants to clean up .tmp files. I could run: find . -name "*.tmp" -delete
-
-  Wait — I should list them first. If I delete blindly I can't undo it. Let me
-  show the user what would be deleted before actually running the destructive command...
-
-⚙ run_command find . -name "*.tmp" -type f
-  ↳ ./cache/session-12.tmp
-    ./cache/session-13.tmp
-    ./build/temp-output.tmp
-
-agent> Found 3 files. Here's what I'd run to delete them:
-  find . -name "*.tmp" -type f -delete
-Confirming before I proceed — approve this?
-```
-
-That self-correction happens without prompting. It's a byproduct of streaming the full
-reasoning chain before acting. You see the hesitation before the action.
-
----
-
-### 4. Honest failure mode: small model limitations
+### 2. Honest failure mode: small model limitations
 
 We won't pretend it's GPT-4. Here's a real mistake from a Windows scripting session:
 
@@ -188,8 +129,10 @@ model.** The point of this tool is that you *can* — just set `VENICE_BASE_URL`
   destructive action. Bypass mode stops the nagging — but a denylist of catastrophic
   commands (`rm -rf /`, `mkfs`, `dd of=/dev/…`, fork bombs, `format C:`, …) *always*
   stops to ask regardless. A small model can't wipe your disk on one bad guess.
-- **Provider-agnostic.** Venice.ai is the default. One env var to point it at Ollama,
-  Together.ai, Fireworks, or any OpenAI-compatible endpoint.
+- **Uncensored by default, yours to move.** Ships on Venice's unfiltered models. Swap
+  `VENICE_MODEL` for another Venice model, or `VENICE_BASE_URL` for any OpenAI-compatible
+  endpoint — including a local Ollama abliterated model for a fully off-grid uncensored setup.
+  The Venice-only request extension is only sent to Venice, so other providers don't choke.
 - **Small enough to read in one sitting.** A handful of single-purpose modules. No magic.
   Fork it, gut it, make it yours.
 - **Auto-saves on exit.** If there's conversation history, it saves automatically to
@@ -270,15 +213,16 @@ $env:VENICE_API_KEY = "your_key"    # just this session
 ### Using a different provider
 
 ```bash
-# Ollama (local, free)
-VENICE_BASE_URL=http://localhost:11434/v1 VENICE_MODEL=llama3 opend
+# Local Ollama — pull an abliterated model for a fully off-grid uncensored setup
+VENICE_BASE_URL=http://localhost:11434/v1 VENICE_MODEL=huihui_ai/deepseek-r1-abliterated opend
 
-# Together.ai
+# Any other OpenAI-compatible host (Together.ai, Fireworks, …)
 VENICE_BASE_URL=https://api.together.xyz/v1 VENICE_MODEL=<model-id> opend
 ```
 
-Venice.ai is the default because it has good uncensored models ready to go without
-self-hosting. But any OpenAI-compatible endpoint works.
+Venice is the default because it has strong uncensored models ready to go with no
+self-hosting. The Venice-only request field is only sent when the base URL is Venice, so
+any OpenAI-compatible endpoint works cleanly.
 
 ### Config file (optional)
 

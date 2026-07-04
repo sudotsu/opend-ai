@@ -11,6 +11,7 @@ export interface Pricing {
 
 export interface AppConfig {
   apiKey: string;
+  baseUrl: string;         // OpenAI-compatible API base; Venice by default
   model: string;
   posture: Posture;
   contextTokens: number;   // sliding-window budget (estimated tokens)
@@ -22,6 +23,7 @@ export interface AppConfig {
 }
 
 const DEFAULTS: Omit<AppConfig, 'apiKey'> = {
+  baseUrl: 'https://api.venice.ai/api/v1',
   model: 'olafangensan-glm-4.7-flash-heretic',
   posture: 'coding',
   contextTokens: 96000,
@@ -56,6 +58,7 @@ export function mergeConfig(
     ...fileCfg,
     pricing: { ...DEFAULTS.pricing, ...(fileCfg.pricing || {}) },
     apiKey: env.VENICE_API_KEY || fileCfg.apiKey || '',
+    baseUrl: env.VENICE_BASE_URL || fileCfg.baseUrl || DEFAULTS.baseUrl,
     model: env.VENICE_MODEL || fileCfg.model || DEFAULTS.model
   } as AppConfig;
 

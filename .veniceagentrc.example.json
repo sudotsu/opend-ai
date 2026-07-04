@@ -3,6 +3,9 @@
 
   "model": "olafangensan-glm-4.7-flash-heretic",
 
+  "baseUrl": "https://api.venice.ai/api/v1",
+  "_baseUrl_comment": "OpenAI-compatible API base. Leave as Venice for the uncensored default. Point at a local Ollama abliterated model (http://localhost:11434/v1) for a fully off-grid uncensored setup — venice_parameters is only sent to Venice.",
+
   "posture": "coding",
   "_posture_options": ["coding", "raw"],
 

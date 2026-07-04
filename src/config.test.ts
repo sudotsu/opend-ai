@@ -48,4 +48,21 @@ describe('mergeConfig precedence: DEFAULTS < home file < cwd file < env', () => 
     const cfg = mergeConfig({}, { apiKey: 'file-key' }, {});
     expect(cfg.apiKey).toBe('file-key');
   });
+
+  it('defaults baseUrl to Venice', () => {
+    const cfg = mergeConfig({}, {}, {});
+    expect(cfg.baseUrl).toBe('https://api.venice.ai/api/v1');
+  });
+
+  it('resolves baseUrl with env > cwd > home > default precedence', () => {
+    expect(mergeConfig({ baseUrl: 'home-url' }, {}, {}).baseUrl).toBe('home-url');
+    expect(mergeConfig({ baseUrl: 'home-url' }, { baseUrl: 'cwd-url' }, {}).baseUrl).toBe('cwd-url');
+    expect(
+      mergeConfig(
+        { baseUrl: 'home-url' },
+        { baseUrl: 'cwd-url' },
+        { VENICE_BASE_URL: 'http://localhost:11434/v1' }
+      ).baseUrl
+    ).toBe('http://localhost:11434/v1');
+  });
 });

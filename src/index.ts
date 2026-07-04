@@ -156,6 +156,7 @@ let controller: AbortController | null = null;
 
 const agent = new VeniceAgent({
   apiKey: config.apiKey,
+  baseUrl: config.baseUrl,
   model: config.model,
   posture: config.posture,
   contextTokens: config.contextTokens,
