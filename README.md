@@ -261,6 +261,37 @@ retries, pricing, default permission mode, and extra catastrophic-command patter
 
 The prompt shows your mode: `you>` (blue) in ask mode, **`you (bypass)>`** (red) in bypass.
 
+### Permission modes & the safety floor
+
+**Ask mode (the default).** Every `write_file`, `edit_file`, and `run_command` stops and shows you
+exactly what it wants to do — the full shell command, or the file it's about to write/edit — and waits
+for a `y`. Nothing destructive happens without you pressing a key. Read-only actions (`read_file`,
+`list_dir`, `grep_search`) never prompt.
+
+**Bypass mode (`/mode`).** Those writes and commands auto-approve so you're not confirming every step —
+**except** a hard-coded denylist of catastrophic shell commands, which *always* stops to confirm even
+here. What's on that floor (`src/denylist.ts`):
+
+- `rm -rf /`, `rm -rf ~`, `rm -rf $HOME` and friends (recursive force-delete of a root/home target)
+- `mkfs…` (formatting a filesystem)
+- `dd … of=/dev/…` and `> /dev/sd|nvme|hd|disk` (writing straight to a raw disk)
+- the classic `:(){ :|:& };:` fork bomb
+- Windows `format C:` and `del … /s|/q|/f`
+- `shutdown` / `reboot` / `halt` / `poweroff`
+
+So a small model can't wipe your disk or your home directory on one bad guess, even in bypass.
+
+**Be honest about the limits — this is a floor, not a force field:**
+- The denylist only inspects **`run_command`** shell strings. In bypass mode a `write_file` or
+  `edit_file` is auto-approved with no catastrophic check, so the agent *can* overwrite an important
+  file without asking. Bypass trades safety for speed on purpose.
+- The list is a **heuristic blocklist, not exhaustive.** A novel phrasing of something destructive can
+  slip past it. It catches the obvious disasters, not every conceivable one.
+- Add your own always-confirm patterns via `extraDenylist` in `.veniceagentrc.json` (regex strings).
+
+If you're doing anything you can't afford to lose, stay in ask mode. Use bypass deliberately, ideally
+in a directory (or VM) where a mistake is recoverable.
+
 ### Tools the agent has
 
 `read_file`, `write_file`, `edit_file` (exact-string replace), `list_dir`,
