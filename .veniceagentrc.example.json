@@ -1,0 +1,26 @@
+{
+  "_comment": "Copy this file to ~/.veniceagentrc.json (applies everywhere) or ./.veniceagentrc.json in a project (overrides the home config there). VENICE_API_KEY/VENICE_MODEL/VENICE_POSTURE env vars always win over both files.",
+
+  "model": "olafangensan-glm-4.7-flash-heretic",
+
+  "posture": "coding",
+  "_posture_options": ["coding", "raw"],
+
+  "contextTokens": 96000,
+  "_contextTokens_comment": "Sliding-window budget in estimated tokens. Oldest whole conversation rounds are trimmed once history exceeds this.",
+
+  "maxRetries": 3,
+  "_maxRetries_comment": "Retry attempts on transient API errors (429/5xx/network) before giving up, with exponential backoff.",
+
+  "pricing": { "in": 0, "out": 0 },
+  "_pricing_comment": "USD per 1,000,000 tokens (in = prompt, out = completion). Leave at 0/0 to show token counts without a dollar cost — the heretic model's real pricing isn't hardcoded here.",
+
+  "bypassDefault": false,
+  "_bypassDefault_comment": "Start in bypass permission mode (auto-approve edits/commands). Catastrophic commands (rm -rf /, mkfs, etc.) always confirm regardless of this setting.",
+
+  "showUsagePerTurn": false,
+  "_showUsagePerTurn_comment": "Print a token-usage line after every turn, in addition to the /usage command.",
+
+  "extraDenylist": [],
+  "_extraDenylist_comment": "Extra regex patterns (as strings) that always require confirmation for run_command, even in bypass mode — on top of the built-in catastrophic-command list."
+}
