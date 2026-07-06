@@ -9,6 +9,17 @@ export interface Pricing {
   out: number;
 }
 
+// Venice-only request extension (only sent when the base URL is Venice).
+// disableThinking:false + stripThinkingResponse:false is what makes the model's
+// reasoning stream back to the client at all — see agent.ts. These default to
+// the values the CLI was built around; exposed here so the behavior is legible
+// and tunable rather than buried in the request builder.
+export interface VeniceParams {
+  disableThinking: boolean;         // false → model produces reasoning
+  stripThinkingResponse: boolean;   // false → reasoning is not stripped from the response
+  includeVeniceSystemPrompt: boolean; // false → use our own system prompt, not Venice's
+}
+
 export interface AppConfig {
   apiKey: string;
   baseUrl: string;         // OpenAI-compatible API base; Venice by default
@@ -20,9 +31,13 @@ export interface AppConfig {
   bypassDefault: boolean;  // start in bypass permission mode
   showUsagePerTurn: boolean;
   extraDenylist: string[]; // extra catastrophic-command regex sources (strings)
+  temperature?: number;    // undefined → omit from request, use provider default
+  maxIterations: number;   // max tool-call rounds per turn before bailing out
+  commandTimeoutMs: number; // run_command hard timeout
+  veniceParams: VeniceParams;
 }
 
-const DEFAULTS: Omit<AppConfig, 'apiKey'> = {
+const DEFAULTS: Omit<AppConfig, 'apiKey' | 'temperature'> = {
   baseUrl: 'https://api.venice.ai/api/v1',
   model: 'olafangensan-glm-4.7-flash-heretic',
   posture: 'coding',
@@ -31,7 +46,14 @@ const DEFAULTS: Omit<AppConfig, 'apiKey'> = {
   pricing: { in: 0, out: 0 },
   bypassDefault: false,
   showUsagePerTurn: false,
-  extraDenylist: []
+  extraDenylist: [],
+  maxIterations: 50,
+  commandTimeoutMs: 30000,
+  veniceParams: {
+    disableThinking: false,
+    stripThinkingResponse: false,
+    includeVeniceSystemPrompt: false
+  }
 };
 
 function readJsonIfExists(p: string): Record<string, any> {
@@ -57,6 +79,7 @@ export function mergeConfig(
     ...DEFAULTS,
     ...fileCfg,
     pricing: { ...DEFAULTS.pricing, ...(fileCfg.pricing || {}) },
+    veniceParams: { ...DEFAULTS.veniceParams, ...(fileCfg.veniceParams || {}) },
     apiKey: env.VENICE_API_KEY || fileCfg.apiKey || '',
     baseUrl: env.VENICE_BASE_URL || fileCfg.baseUrl || DEFAULTS.baseUrl,
     model: env.VENICE_MODEL || fileCfg.model || DEFAULTS.model
@@ -64,6 +87,11 @@ export function mergeConfig(
 
   const envPosture = env.VENICE_POSTURE as Posture | undefined;
   if (envPosture === 'coding' || envPosture === 'raw') merged.posture = envPosture;
+
+  // Temperature is optional: undefined must stay undefined so the request omits it
+  // and the provider's own default applies. Never coerce to 0.
+  const envTemp = env.VENICE_TEMPERATURE !== undefined ? Number(env.VENICE_TEMPERATURE) : undefined;
+  if (envTemp !== undefined && !Number.isNaN(envTemp)) merged.temperature = envTemp;
 
   return merged;
 }
