@@ -23,8 +23,13 @@ export function splitForPrune(
   budget: number
 ): { kept: any[]; evicted: any[] } {
   if (messages.length <= 1) return { kept: messages, evicted: [] };
-  const system = messages[0];
-  const rest = messages.slice(1);
+  // Pin a leading system message out of the prunable window, but only if one is
+  // actually present. A malformed/normalized-away history that doesn't start with
+  // a system message must not have its first real message mistaken for (and pinned
+  // as) the system prompt — that would miscount rounds and never evict it.
+  const hasSystem = messages[0]?.role === 'system';
+  const system = hasSystem ? messages[0] : null;
+  const rest = hasSystem ? messages.slice(1) : messages;
 
   const boundaries: number[] = [];
   rest.forEach((m, i) => {
@@ -33,7 +38,7 @@ export function splitForPrune(
   if (boundaries.length <= 1) return { kept: messages, evicted: [] }; // only the current round
 
   const currentRoundStart = boundaries[boundaries.length - 1];
-  let acc = estTokens(system);
+  let acc = system ? estTokens(system) : 0;
   for (let i = currentRoundStart; i < rest.length; i++) acc += estTokens(rest[i]);
 
   let keepFrom = currentRoundStart;
@@ -46,7 +51,8 @@ export function splitForPrune(
   }
 
   if (keepFrom === 0) return { kept: messages, evicted: [] };
-  return { kept: [system, ...rest.slice(keepFrom)], evicted: rest.slice(0, keepFrom) };
+  const kept = system ? [system, ...rest.slice(keepFrom)] : rest.slice(keepFrom);
+  return { kept, evicted: rest.slice(0, keepFrom) };
 }
 
 // Sliding-window trim: the kept half of splitForPrune. Kept as a thin wrapper so

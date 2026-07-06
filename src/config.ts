@@ -72,6 +72,21 @@ function readJsonIfExists(p: string): Record<string, any> {
   return {};
 }
 
+// Coerce a config-supplied numeric limit to a safe finite integer >= `min`.
+// Bad values (null, strings, floats, 0/negative, non-finite) fall back to
+// `fallback` with a warning, so a malformed override can never disable a loop
+// bound or a safety timeout. Kept generic so both limits share one rule.
+function sanitizeIntLimit(value: any, min: number, fallback: number, label: string): number {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= min) return value;
+  if (value !== undefined) {
+    console.error(
+      `Warning: ignoring invalid ${label} (${JSON.stringify(value)}); ` +
+        `must be an integer >= ${min}. Using ${fallback}.`
+    );
+  }
+  return fallback;
+}
+
 // Pure merge: DEFAULTS < homeCfg < cwdCfg < env. Exported (no fs) so precedence is
 // unit-testable without touching the real filesystem or $HOME.
 export function mergeConfig(
@@ -95,9 +110,34 @@ export function mergeConfig(
   if (envPosture === 'coding' || envPosture === 'raw') merged.posture = envPosture;
 
   // Temperature is optional: undefined must stay undefined so the request omits it
-  // and the provider's own default applies. Never coerce to 0.
+  // and the provider's own default applies. Never coerce to 0. The spread above can
+  // carry an arbitrary JSON value here (null, a string, a non-finite number) — only
+  // a finite number is a valid temperature; anything else is treated as unset.
+  merged.temperature =
+    typeof merged.temperature === 'number' && Number.isFinite(merged.temperature)
+      ? merged.temperature
+      : undefined;
+
+  // Env override wins, but only when it parses to a finite number.
   const envTemp = env.VENICE_TEMPERATURE !== undefined ? Number(env.VENICE_TEMPERATURE) : undefined;
-  if (envTemp !== undefined && !Number.isNaN(envTemp)) merged.temperature = envTemp;
+  if (envTemp !== undefined && Number.isFinite(envTemp)) merged.temperature = envTemp;
+
+  // Numeric safety limits: a bad value here is worse than a wrong one. A
+  // maxIterations < 1 makes the agent emit the cap message before doing any
+  // tool-call rounds; a commandTimeoutMs of 0/negative removes run_command's
+  // hard timeout entirely. Only accept sane integers; otherwise use the default.
+  merged.maxIterations = sanitizeIntLimit(
+    fileCfg.maxIterations,
+    1,
+    DEFAULTS.maxIterations,
+    'maxIterations'
+  );
+  merged.commandTimeoutMs = sanitizeIntLimit(
+    fileCfg.commandTimeoutMs,
+    1000,
+    DEFAULTS.commandTimeoutMs,
+    'commandTimeoutMs'
+  );
 
   return merged;
 }

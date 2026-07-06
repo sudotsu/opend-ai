@@ -148,4 +148,19 @@ describe('splitForPrune', () => {
     expect(kept).toEqual(history);
     expect(evicted).toEqual([]);
   });
+
+  it('does not pin a non-system first message as if it were the system prompt', () => {
+    // History with no leading system message (e.g. a malformed session). The first
+    // user message must be a prunable round, not treated as an un-evictable system.
+    const messages: any[] = [];
+    for (let i = 1; i <= 4; i++) messages.push(...round(i));
+    const { kept, evicted } = splitForPrune(messages, 500);
+    // Oldest rounds evicted, newest kept, and no phantom system message survives.
+    expect(kept.some((m) => m.role === 'system')).toBe(false);
+    expect(kept.some((m) => m.role === 'user' && (m.content as string).startsWith('q4'))).toBe(true);
+    expect(evicted.some((m) => m.role === 'user' && (m.content as string).startsWith('q1'))).toBe(
+      true
+    );
+    expect(hasOrphanedToolMessage(kept)).toBe(false);
+  });
 });

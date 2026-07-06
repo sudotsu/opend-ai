@@ -3,7 +3,7 @@ import { readFile, writeFile, editFile, listDir, runCommand, grepSearch } from '
 import { systemPromptFor, type Posture } from './prompts.js';
 import type { VeniceParams } from './config.js';
 import { pruneHistory, splitForPrune, estTokens } from './history.js';
-import { buildSummaryRequest, summaryMessage } from './summarize.js';
+import { buildSummaryRequest, summaryMessage, SUMMARY_HEADER } from './summarize.js';
 import { splitThink } from './think.js';
 
 export interface SummarizeResult {
@@ -186,8 +186,18 @@ export class VeniceAgent {
     this.maxRetries = config.maxRetries ?? 3;
     this.pricing = config.pricing ?? { in: 0, out: 0 };
     this.temperature = config.temperature;
-    this.maxIterations = config.maxIterations ?? 50;
-    this.commandTimeoutMs = config.commandTimeoutMs ?? 30000;
+    // Defensive floors: config.ts already sanitizes these, but the agent can be
+    // constructed directly (tests, embedders). A maxIterations < 1 would emit the
+    // cap message before any tool round; a commandTimeoutMs < 1000 would gut
+    // run_command's safety timeout. Clamp so neither can happen.
+    this.maxIterations =
+      Number.isInteger(config.maxIterations) && (config.maxIterations as number) >= 1
+        ? (config.maxIterations as number)
+        : 50;
+    this.commandTimeoutMs =
+      Number.isInteger(config.commandTimeoutMs) && (config.commandTimeoutMs as number) >= 1000
+        ? (config.commandTimeoutMs as number)
+        : 30000;
     this.summarizeOnPrune = config.summarizeOnPrune ?? true;
     this.maxSummaryTokens = config.maxSummaryTokens ?? 1024;
     this.summarizer = config.summarizer ?? this.defaultSummarize.bind(this);
@@ -214,9 +224,20 @@ export class VeniceAgent {
     return this.messages;
   }
 
-  // Replace history wholesale (used when loading a saved session).
+  // Replace history wholesale (used when loading a saved session). Normalizes so
+  // messages[0] is always a system prompt — a saved file or caller could pass an
+  // empty array or one that doesn't start with a system message, which would
+  // otherwise corrupt buildSentMessages() and the pruning window (both assume the
+  // first element is the system message).
   setHistory(messages: any[]) {
-    this.messages = messages;
+    const arr = Array.isArray(messages) ? messages : [];
+    if (arr.length === 0) {
+      this.messages = [{ role: 'system', content: systemPromptFor(this.posture) }];
+    } else if (arr[0]?.role !== 'system') {
+      this.messages = [{ role: 'system', content: systemPromptFor(this.posture) }, ...arr];
+    } else {
+      this.messages = arr;
+    }
   }
 
   getSummary(): string {
@@ -284,9 +305,33 @@ export class VeniceAgent {
   // prunable message history.
   private buildSentMessages(): any[] {
     const injected = summaryMessage(this.summary);
-    return injected
-      ? [this.messages[0], injected, ...this.messages.slice(1)]
-      : this.messages;
+    if (!injected) return this.messages;
+    // Defensive: setHistory() normalizes messages[0] to a system message, but guard
+    // here too so we never emit `undefined` (empty history) or slot the summary
+    // after a non-system message (which would break the system-prompt-first
+    // contract the model and pruning both rely on).
+    const first = this.messages[0];
+    if (first?.role === 'system') {
+      return [first, injected, ...this.messages.slice(1)];
+    }
+    // No leading system message: put the summary first, then the whole history.
+    return [injected, ...this.messages];
+  }
+
+  // Tokens to hold out of the window for the CURRENT injected summary message, so
+  // pruning leaves room for what buildSentMessages() will actually prepend.
+  private summaryReserve(): number {
+    const injected = summaryMessage(this.summary);
+    return injected ? estTokens(injected) : 0;
+  }
+
+  // Ceiling reserve for the summary AFTER a fold. The summarizer output is capped
+  // at maxSummaryTokens, and the injected message adds the header/role wrapper on
+  // top. Pruning must reserve for this ceiling — not the smaller current summary —
+  // or the freshly-grown summary can push the next request past contextTokens.
+  private projectedSummaryReserve(): number {
+    const wrapper = estTokens({ role: 'system', content: `${SUMMARY_HEADER}\n\n` });
+    return this.maxSummaryTokens + wrapper;
   }
 
   // Run one streamed model turn: create the request, consume deltas via callbacks,
@@ -303,9 +348,13 @@ export class VeniceAgent {
       stream: true,
       stream_options: { include_usage: true }
     };
-    // Only send temperature when explicitly configured; omitting it lets the
+    // Only send temperature when it's a finite number; omitting it lets the
     // provider apply its own default (coercing to 0 would silently change behavior).
-    if (this.temperature !== undefined) body.temperature = this.temperature;
+    // Defensive: config validation should already have dropped null/string/NaN, but
+    // guard here too so a bad value can never reach the provider as `temperature`.
+    if (typeof this.temperature === 'number' && Number.isFinite(this.temperature)) {
+      body.temperature = this.temperature;
+    }
     // `venice_parameters` is a Venice-only extension the OpenAI SDK types don't
     // know about — only attach it when talking to Venice (see constructor).
     if (this.isVenice) {
@@ -453,17 +502,32 @@ export class VeniceAgent {
   // history untouched so the caller can cancel with no half-eviction.
   private async applyPruneAndSummarize(signal?: AbortSignal): Promise<void> {
     if (!this.summarizeOnPrune) {
-      this.messages = pruneHistory(this.messages, this.contextTokens);
+      // Summarization is off, but buildSentMessages() still injects any summary
+      // restored from a saved session. Reserve for it or a loaded session with a
+      // non-empty summary can push the next request over contextTokens.
+      this.messages = pruneHistory(this.messages, this.contextTokens - this.summaryReserve());
       return;
     }
-    // Reserve room for the injected summary message so it can't push us over budget.
-    const injected = summaryMessage(this.summary);
-    const reserve = injected ? estTokens(injected) : 0;
-    const { kept, evicted } = splitForPrune(this.messages, this.contextTokens - reserve);
-    if (evicted.length === 0) {
-      this.messages = kept;
+
+    // First pass reserves for the CURRENT summary, just to decide whether anything
+    // needs to leave the window at all.
+    const currentReserve = this.summaryReserve();
+    const first = splitForPrune(this.messages, this.contextTokens - currentReserve);
+    if (first.evicted.length === 0) {
+      this.messages = first.kept;
       return;
     }
+
+    // Eviction is happening, so the rolling summary will be regenerated and can
+    // grow up to maxSummaryTokens. Re-split reserving for that ceiling so the very
+    // next request (system + injected summary + kept history) still fits, even
+    // though the committed summary is larger than the one we reserved for above.
+    const projectedReserve = this.projectedSummaryReserve();
+    const { kept, evicted } =
+      projectedReserve > currentReserve
+        ? splitForPrune(this.messages, this.contextTokens - projectedReserve)
+        : first;
+
     try {
       const res = await this.summarizer(this.summary, evicted, signal);
       this.summary = res.summary; // commit new summary FIRST…

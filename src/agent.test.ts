@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { VeniceAgent, type Summarizer } from './agent.js';
 import { SUMMARY_HEADER } from './summarize.js';
+import { estTokens } from './history.js';
 
 // These tests exercise the prune→summarize→inject path with an injected fake
 // summarizer, so nothing touches the network. They target the integration the
@@ -46,6 +47,31 @@ function hasOrphanedToolMessage(messages: any[]): boolean {
 const prune = (a: VeniceAgent) => (a as any).applyPruneAndSummarize() as Promise<void>;
 const msgsOf = (a: VeniceAgent) => (a as any).messages as any[];
 const sentOf = (a: VeniceAgent) => (a as any).buildSentMessages() as any[];
+const sentTokens = (a: VeniceAgent) => sentOf(a).reduce((n, m) => n + estTokens(m), 0);
+
+// Smaller rounds than `round()` so several fit in a modest budget — that's what
+// makes the summary-reserve trimming observable rather than swamped by one huge
+// round that fills the window on its own.
+const small = 'y'.repeat(120);
+function smallRound(n: number) {
+  return [
+    { role: 'user', content: `q${n} ${small}` },
+    {
+      role: 'assistant',
+      content: null,
+      tool_calls: [
+        { id: `t${n}`, type: 'function', function: { name: 'read_file', arguments: '{"path":"a"}' } }
+      ]
+    },
+    { role: 'tool', tool_call_id: `t${n}`, name: 'read_file', content: small },
+    { role: 'assistant', content: `answer ${n} ${small}` }
+  ];
+}
+function smallHistory(rounds: number) {
+  const msgs: any[] = [{ role: 'system', content: 'SYS' }];
+  for (let i = 1; i <= rounds; i++) msgs.push(...smallRound(i));
+  return msgs;
+}
 
 describe('summarize-on-prune integration', () => {
   it('folds evicted rounds into the summary, drops them, keeps the newest round intact', async () => {
@@ -150,6 +176,89 @@ describe('summarize-on-prune integration', () => {
     // No half-eviction: history and summary unchanged
     expect(msgsOf(agent)).toEqual(before);
     expect(agent.getSummary()).toBe('');
+  });
+
+  it('keeps the next request within contextTokens even when the new summary grows', async () => {
+    // Simulate a summary growing from empty up to the maxSummaryTokens ceiling.
+    // Before the projected-reserve fix, pruning reserved for the OLD (empty)
+    // summary, then committed the large one, overflowing the very next request.
+    const maxSummaryTokens = 60;
+    const grown = 'S'.repeat(maxSummaryTokens * 4); // ~maxSummaryTokens tokens of body
+    const fake: Summarizer = async () => ({ summary: grown });
+    const contextTokens = 700;
+    const agent = new VeniceAgent({
+      apiKey: 'test',
+      contextTokens,
+      maxSummaryTokens,
+      summarizer: fake
+    });
+    agent.setHistory(smallHistory(10)); // well over budget, forces eviction
+
+    await prune(agent);
+
+    expect(agent.getSummary()).toBe(grown); // the summary really did grow
+    expect(sentTokens(agent)).toBeLessThanOrEqual(contextTokens); // …request still fits
+  });
+
+  it('reserves for a restored summary when summarizeOnPrune is false', async () => {
+    // A session loaded from disk can carry a non-empty summary even with
+    // summarization off; buildSentMessages() still injects it, so the prune must
+    // reserve for it or the request overflows.
+    const contextTokens = 700;
+    const agent = new VeniceAgent({ apiKey: 'test', contextTokens, summarizeOnPrune: false });
+    agent.setHistory(smallHistory(10));
+    agent.setSummary('R'.repeat(600)); // ~150-token restored summary
+
+    await prune(agent);
+
+    expect(agent.getSummary()).not.toBe(''); // summary preserved, still injected
+    expect(sentTokens(agent)).toBeLessThanOrEqual(contextTokens); // and the request fits
+  });
+
+  it('normalizes setHistory: empty array gets a system prompt', () => {
+    const agent = new VeniceAgent({ apiKey: 'test' });
+    agent.setHistory([]);
+    const msgs = msgsOf(agent);
+    expect(msgs.length).toBe(1);
+    expect(msgs[0].role).toBe('system');
+  });
+
+  it('normalizes setHistory: unshifts a system prompt when the first message is not system', () => {
+    const agent = new VeniceAgent({ apiKey: 'test' });
+    agent.setHistory([
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'hello' }
+    ]);
+    const msgs = msgsOf(agent);
+    expect(msgs[0].role).toBe('system');
+    expect(msgs[1]).toEqual({ role: 'user', content: 'hi' });
+  });
+
+  it('normalizes setHistory: a non-array is treated as empty', () => {
+    const agent = new VeniceAgent({ apiKey: 'test' });
+    agent.setHistory(undefined as any);
+    const msgs = msgsOf(agent);
+    expect(msgs.length).toBe(1);
+    expect(msgs[0].role).toBe('system');
+  });
+
+  it('buildSentMessages never emits undefined or a mis-slotted summary', () => {
+    const agent = new VeniceAgent({ apiKey: 'test' });
+    agent.setSummary('ROLLED UP');
+    // Force a malformed history past setHistory's guard to prove the defensive
+    // path in buildSentMessages itself.
+    (agent as any).messages = [];
+    let sent = sentOf(agent);
+    expect(sent.every((m) => m !== undefined)).toBe(true);
+    expect(sent[0].role).toBe('system'); // the injected summary leads
+    expect(sent[0].content).toContain('ROLLED UP');
+
+    (agent as any).messages = [{ role: 'user', content: 'hi' }];
+    sent = sentOf(agent);
+    expect(sent.every((m) => m !== undefined)).toBe(true);
+    // Summary must come before the user message, not after it.
+    expect(sent[0].content).toContain('ROLLED UP');
+    expect(sent[sent.length - 1]).toEqual({ role: 'user', content: 'hi' });
   });
 
   it('honors summarizeOnPrune:false by dropping without summarizing', async () => {
