@@ -30,6 +30,7 @@ export interface AppConfig {
   pricing: Pricing;
   bypassDefault: boolean;  // start in bypass permission mode
   showUsagePerTurn: boolean;
+  showThinking: boolean;   // render the reasoning panel client-side (model still reasons either way)
   extraDenylist: string[]; // extra catastrophic-command regex sources (strings)
   temperature?: number;    // undefined → omit from request, use provider default
   maxIterations: number;   // max tool-call rounds per turn before bailing out
@@ -46,6 +47,7 @@ const DEFAULTS: Omit<AppConfig, 'apiKey' | 'temperature'> = {
   pricing: { in: 0, out: 0 },
   bypassDefault: false,
   showUsagePerTurn: false,
+  showThinking: true,
   extraDenylist: [],
   maxIterations: 50,
   commandTimeoutMs: 30000,

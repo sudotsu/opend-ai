@@ -69,14 +69,14 @@ class RenderSession {
     while ((nl = this.thinkBuffer.indexOf('\n')) !== -1) {
       const line = this.thinkBuffer.slice(0, nl);
       this.thinkBuffer = this.thinkBuffer.slice(nl + 1);
-      process.stdout.write('\n' + chalk.dim.italic('  ') + styleThinkingLine(line));
+      process.stdout.write('\n' + chalk.dim('│ ') + styleThinkingLine(line));
     }
   }
 
   // Emit any buffered partial last line before leaving thinking mode.
   private flushThinking() {
     if (this.thinkBuffer.length > 0) {
-      process.stdout.write('\n' + chalk.dim.italic('  ') + styleThinkingLine(this.thinkBuffer));
+      process.stdout.write('\n' + chalk.dim('│ ') + styleThinkingLine(this.thinkBuffer));
       this.thinkBuffer = '';
     }
   }
@@ -135,6 +135,11 @@ class RenderSession {
 // 'bypass': auto-approve — except commands matching CATASTROPHIC, which always ask.
 let bypass = config.bypassDefault;
 
+// Whether to render the reasoning panel. This is a *display* switch only — the
+// model still produces reasoning (that's governed server-side by
+// veniceParams.disableThinking); this just hides it from the terminal.
+let showThinking = config.showThinking;
+
 function modeLabel(): string {
   return bypass
     ? chalk.bold.red('bypass — auto-approving edits/commands')
@@ -145,6 +150,12 @@ function postureLabel(): string {
   return agent.getPosture() === 'raw'
     ? chalk.bold.yellow('raw — uncensored persona, no coding scaffolding')
     : chalk.bold.cyan('coding — uncensored agentic coding assistant');
+}
+
+function thinkingLabel(): string {
+  return showThinking
+    ? chalk.bold.green('shown — reasoning panel visible')
+    : chalk.bold.gray('hidden — reasoning still runs, just not displayed');
 }
 
 function promptText(): string {
@@ -167,7 +178,9 @@ const agent = new VeniceAgent({
   maxIterations: config.maxIterations,
   commandTimeoutMs: config.commandTimeoutMs,
   veniceParams: config.veniceParams,
-  onThinking: (text) => render?.thinking(text),
+  onThinking: (text) => {
+    if (showThinking) render?.thinking(text);
+  },
   onContent: (text) => render?.content(text),
   onToolStart: (name, args) => render?.toolStart(name, args),
   onToolEnd: (name, result) => render?.toolEnd(name, result),
@@ -207,6 +220,7 @@ const agent = new VeniceAgent({
 const HELP_TEXT = [
   chalk.cyan('/mode') + chalk.gray(' (or /bypass, /auto) — toggle ask ⇄ bypass permission mode'),
   chalk.cyan('/posture') + chalk.gray(' — toggle coding ⇄ raw system prompt'),
+  chalk.cyan('/thinking') + chalk.gray(' — toggle the reasoning panel shown ⇄ hidden (display only)'),
   chalk.cyan('/save [name]') + chalk.gray(' — save the current conversation to disk'),
   chalk.cyan('/load <name>') + chalk.gray(' — restore a previously saved conversation'),
   chalk.cyan('/sessions') + chalk.gray(' — list saved conversations'),
@@ -223,6 +237,7 @@ function printBanner() {
   console.log(chalk.gray('Model:    ') + chalk.green(agent.getModel()));
   console.log(chalk.gray('Mode:     ') + modeLabel());
   console.log(chalk.gray('Posture:  ') + postureLabel());
+  console.log(chalk.gray('Thinking: ') + thinkingLabel());
   console.log(chalk.gray('Type ') + chalk.cyan('/help') + chalk.gray(' for all commands.'));
   console.log(chalk.gray('--------------------------------------------------\n'));
 }
@@ -321,6 +336,13 @@ async function handleLine(line: string): Promise<void> {
     const next = agent.getPosture() === 'raw' ? 'coding' : 'raw';
     agent.setPosture(next);
     console.log('\nPosture → ' + postureLabel() + '\n');
+    rl.prompt();
+    return;
+  }
+
+  if (lower === '/thinking') {
+    showThinking = !showThinking;
+    console.log('\nThinking → ' + thinkingLabel() + '\n');
     rl.prompt();
     return;
   }

@@ -24,6 +24,9 @@
   "showUsagePerTurn": false,
   "_showUsagePerTurn_comment": "Print a token-usage line after every turn, in addition to the /usage command.",
 
+  "showThinking": true,
+  "_showThinking_comment": "Render the dimmed 'thinking>' reasoning panel in the terminal. Display-only: the model still produces reasoning regardless (that's veniceParams.disableThinking) — this just shows or hides it. Toggle at runtime with /thinking.",
+
   "extraDenylist": [],
   "_extraDenylist_comment": "Extra regex patterns (as strings) that always require confirmation for run_command, even in bypass mode — on top of the built-in catastrophic-command list.",
 
