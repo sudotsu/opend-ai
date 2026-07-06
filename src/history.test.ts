@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { estTokens, pruneHistory } from './history.js';
+import { estTokens, pruneHistory, splitForPrune } from './history.js';
 
 const big = 'x'.repeat(400); // ~104 estimated tokens
 
@@ -109,5 +109,58 @@ describe('pruneHistory', () => {
   it('is a no-op on a history with only a system message', () => {
     const history = [{ role: 'system', content: 'hi' }];
     expect(pruneHistory(history, 1)).toEqual(history);
+  });
+});
+
+describe('splitForPrune', () => {
+  it('evicts nothing when everything fits', () => {
+    const history = buildHistory(4);
+    const { kept, evicted } = splitForPrune(history, 100000);
+    expect(kept).toEqual(history);
+    expect(evicted).toEqual([]);
+  });
+
+  it('evicts the oldest rounds and kept === pruneHistory output', () => {
+    const history = buildHistory(4);
+    const { kept, evicted } = splitForPrune(history, 500);
+    // kept must match the trim-only path exactly
+    expect(kept).toEqual(pruneHistory(history, 500));
+    // evicted must be the oldest round(s), starting at q1, and never include system
+    expect(evicted.some((m) => m.role === 'system')).toBe(false);
+    expect(evicted.some((m) => m.role === 'user' && (m.content as string).startsWith('q1'))).toBe(
+      true
+    );
+    // kept + evicted account for every non-system message, in order
+    const recombined = [history[0], ...evicted, ...kept.slice(1)];
+    expect(recombined).toEqual(history);
+  });
+
+  it('evicts whole rounds only (no orphaned tool messages left behind)', () => {
+    const history = buildHistory(6);
+    const { evicted } = splitForPrune(history, 500);
+    // an evicted `tool` message must keep its assistant tool_calls in the evicted slice
+    expect(hasOrphanedToolMessage([history[0], ...evicted])).toBe(false);
+  });
+
+  it('evicts nothing when only the current round exists', () => {
+    const history = buildHistory(1);
+    const { kept, evicted } = splitForPrune(history, 1);
+    expect(kept).toEqual(history);
+    expect(evicted).toEqual([]);
+  });
+
+  it('does not pin a non-system first message as if it were the system prompt', () => {
+    // History with no leading system message (e.g. a malformed session). The first
+    // user message must be a prunable round, not treated as an un-evictable system.
+    const messages: any[] = [];
+    for (let i = 1; i <= 4; i++) messages.push(...round(i));
+    const { kept, evicted } = splitForPrune(messages, 500);
+    // Oldest rounds evicted, newest kept, and no phantom system message survives.
+    expect(kept.some((m) => m.role === 'system')).toBe(false);
+    expect(kept.some((m) => m.role === 'user' && (m.content as string).startsWith('q4'))).toBe(true);
+    expect(evicted.some((m) => m.role === 'user' && (m.content as string).startsWith('q1'))).toBe(
+      true
+    );
+    expect(hasOrphanedToolMessage(kept)).toBe(false);
   });
 });

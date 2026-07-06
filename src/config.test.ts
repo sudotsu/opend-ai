@@ -66,3 +66,132 @@ describe('mergeConfig precedence: DEFAULTS < home file < cwd file < env', () => 
     ).toBe('http://localhost:11434/v1');
   });
 });
+
+describe('mergeConfig temperature validation', () => {
+  it('is undefined by default (omitted from requests)', () => {
+    expect(mergeConfig({}, {}, {}).temperature).toBeUndefined();
+  });
+
+  it('keeps a finite numeric temperature from file config', () => {
+    expect(mergeConfig({ temperature: 0.7 }, {}, {}).temperature).toBe(0.7);
+    expect(mergeConfig({ temperature: 0 }, {}, {}).temperature).toBe(0);
+  });
+
+  it('treats a null temperature as unset', () => {
+    expect(mergeConfig({ temperature: null } as any, {}, {}).temperature).toBeUndefined();
+  });
+
+  it('rejects a string temperature', () => {
+    expect(mergeConfig({ temperature: '0.7' } as any, {}, {}).temperature).toBeUndefined();
+  });
+
+  it('rejects a non-finite temperature', () => {
+    expect(mergeConfig({ temperature: Infinity } as any, {}, {}).temperature).toBeUndefined();
+    expect(mergeConfig({ temperature: NaN } as any, {}, {}).temperature).toBeUndefined();
+  });
+
+  it('lets a valid env override replace the file value', () => {
+    const cfg = mergeConfig({ temperature: 0.2 }, {}, { VENICE_TEMPERATURE: '0.9' });
+    expect(cfg.temperature).toBe(0.9);
+  });
+
+  it('ignores a non-numeric env override, keeping the valid file value', () => {
+    const cfg = mergeConfig({ temperature: 0.2 }, {}, { VENICE_TEMPERATURE: 'hot' });
+    expect(cfg.temperature).toBe(0.2);
+  });
+
+  it('env override rescues an invalid file temperature', () => {
+    const cfg = mergeConfig({ temperature: null } as any, {}, { VENICE_TEMPERATURE: '0.5' });
+    expect(cfg.temperature).toBe(0.5);
+  });
+});
+
+describe('mergeConfig numeric limit validation', () => {
+  it('uses defaults when limits are unset', () => {
+    const cfg = mergeConfig({}, {}, {});
+    expect(cfg.maxIterations).toBe(50);
+    expect(cfg.commandTimeoutMs).toBe(30000);
+  });
+
+  it('keeps a valid maxIterations and commandTimeoutMs', () => {
+    const cfg = mergeConfig({ maxIterations: 10, commandTimeoutMs: 5000 }, {}, {});
+    expect(cfg.maxIterations).toBe(10);
+    expect(cfg.commandTimeoutMs).toBe(5000);
+  });
+
+  it('rejects maxIterations of 0, keeping the default', () => {
+    expect(mergeConfig({ maxIterations: 0 }, {}, {}).maxIterations).toBe(50);
+  });
+
+  it('rejects a negative maxIterations', () => {
+    expect(mergeConfig({ maxIterations: -5 }, {}, {}).maxIterations).toBe(50);
+  });
+
+  it('rejects a null maxIterations', () => {
+    expect(mergeConfig({ maxIterations: null } as any, {}, {}).maxIterations).toBe(50);
+  });
+
+  it('rejects a string maxIterations', () => {
+    expect(mergeConfig({ maxIterations: '10' } as any, {}, {}).maxIterations).toBe(50);
+  });
+
+  it('rejects a non-integer maxIterations', () => {
+    expect(mergeConfig({ maxIterations: 3.5 }, {}, {}).maxIterations).toBe(50);
+  });
+
+  it('rejects commandTimeoutMs of 0 (would remove the hard timeout)', () => {
+    expect(mergeConfig({ commandTimeoutMs: 0 }, {}, {}).commandTimeoutMs).toBe(30000);
+  });
+
+  it('rejects a negative commandTimeoutMs', () => {
+    expect(mergeConfig({ commandTimeoutMs: -1000 }, {}, {}).commandTimeoutMs).toBe(30000);
+  });
+
+  it('rejects a commandTimeoutMs below the 1000ms safe minimum', () => {
+    expect(mergeConfig({ commandTimeoutMs: 500 }, {}, {}).commandTimeoutMs).toBe(30000);
+  });
+
+  it('rejects a null / string commandTimeoutMs', () => {
+    expect(mergeConfig({ commandTimeoutMs: null } as any, {}, {}).commandTimeoutMs).toBe(30000);
+    expect(mergeConfig({ commandTimeoutMs: '5000' } as any, {}, {}).commandTimeoutMs).toBe(30000);
+  });
+
+  it('cwd config still overrides home for a valid limit', () => {
+    const cfg = mergeConfig({ maxIterations: 10 }, { maxIterations: 20 }, {});
+    expect(cfg.maxIterations).toBe(20);
+  });
+});
+
+describe('mergeConfig summary field validation', () => {
+  it('defaults summarizeOnPrune to true and maxSummaryTokens to 1024', () => {
+    const cfg = mergeConfig({}, {}, {});
+    expect(cfg.summarizeOnPrune).toBe(true);
+    expect(cfg.maxSummaryTokens).toBe(1024);
+  });
+
+  it('keeps a valid boolean summarizeOnPrune', () => {
+    expect(mergeConfig({ summarizeOnPrune: false }, {}, {}).summarizeOnPrune).toBe(false);
+    expect(mergeConfig({ summarizeOnPrune: true }, {}, {}).summarizeOnPrune).toBe(true);
+  });
+
+  it('rejects a string "false" for summarizeOnPrune (would be truthy)', () => {
+    expect(mergeConfig({ summarizeOnPrune: 'false' } as any, {}, {}).summarizeOnPrune).toBe(true);
+  });
+
+  it('rejects null / object summarizeOnPrune, keeping the default', () => {
+    expect(mergeConfig({ summarizeOnPrune: null } as any, {}, {}).summarizeOnPrune).toBe(true);
+    expect(mergeConfig({ summarizeOnPrune: {} } as any, {}, {}).summarizeOnPrune).toBe(true);
+  });
+
+  it('keeps a valid integer maxSummaryTokens', () => {
+    expect(mergeConfig({ maxSummaryTokens: 256 }, {}, {}).maxSummaryTokens).toBe(256);
+  });
+
+  it('rejects a string, null, 0, negative, or float maxSummaryTokens', () => {
+    expect(mergeConfig({ maxSummaryTokens: '1024' } as any, {}, {}).maxSummaryTokens).toBe(1024);
+    expect(mergeConfig({ maxSummaryTokens: null } as any, {}, {}).maxSummaryTokens).toBe(1024);
+    expect(mergeConfig({ maxSummaryTokens: 0 }, {}, {}).maxSummaryTokens).toBe(1024);
+    expect(mergeConfig({ maxSummaryTokens: -10 }, {}, {}).maxSummaryTokens).toBe(1024);
+    expect(mergeConfig({ maxSummaryTokens: 12.5 }, {}, {}).maxSummaryTokens).toBe(1024);
+  });
+});

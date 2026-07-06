@@ -177,6 +177,8 @@ const agent = new VeniceAgent({
   temperature: config.temperature,
   maxIterations: config.maxIterations,
   commandTimeoutMs: config.commandTimeoutMs,
+  summarizeOnPrune: config.summarizeOnPrune,
+  maxSummaryTokens: config.maxSummaryTokens,
   veniceParams: config.veniceParams,
   onThinking: (text) => {
     if (showThinking) render?.thinking(text);
@@ -264,6 +266,7 @@ function autoSaveOnExit(): void {
       model: agent.getModel(),
       posture: agent.getPosture(),
       messages: history,
+      summary: agent.getSummary(),
     });
     console.log(chalk.gray('\nAuto-saved session → ' + savedPath));
   } catch {
@@ -375,7 +378,8 @@ async function handleLine(line: string): Promise<void> {
     const savedPath = saveSession(name, {
       model: agent.getModel(),
       posture: agent.getPosture(),
-      messages: agent.getHistory()
+      messages: agent.getHistory(),
+      summary: agent.getSummary()
     });
     console.log(chalk.cyan('\nSaved session to ' + savedPath + '\n'));
     rl.prompt();
@@ -387,6 +391,7 @@ async function handleLine(line: string): Promise<void> {
     try {
       const data = loadSession(name);
       agent.setHistory(data.messages);
+      agent.setSummary(typeof data.summary === 'string' ? data.summary : '');
       if (data.posture === 'coding' || data.posture === 'raw') {
         agent.setPosture(data.posture);
       }

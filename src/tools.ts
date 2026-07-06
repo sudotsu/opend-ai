@@ -102,14 +102,19 @@ export function listDir(dirPath: string): string {
 
 // 5. Run Command Tool
 export function runCommand(command: string, timeoutMs: number = 30000): Promise<string> {
+  // Node's exec disables the timeout entirely for 0/negative/non-finite values,
+  // which would let a hung command block the agent forever. Floor to a safe
+  // minimum so the hard timeout can never be silently removed.
+  const effectiveTimeout =
+    Number.isFinite(timeoutMs) && timeoutMs >= 1000 ? timeoutMs : 30000;
   return new Promise((resolve) => {
-    exec(command, { timeout: timeoutMs }, (error, stdout, stderr) => {
+    exec(command, { timeout: effectiveTimeout }, (error, stdout, stderr) => {
       let output = '';
       if (stdout) output += 'STDOUT:\n' + stdout + '\n';
       if (stderr) output += 'STDERR:\n' + stderr + '\n';
       if (error) {
         if (error.killed) {
-          resolve(`Command timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
+          resolve(`Command timed out after ${Math.round(effectiveTimeout / 1000)} seconds.`);
           return;
         }
         output += 'ERROR: ' + error.message + '\n';
