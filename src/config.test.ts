@@ -119,6 +119,12 @@ describe('mergeConfig numeric limit validation', () => {
     expect(cfg.commandTimeoutMs).toBe(5000);
   });
 
+  it('accepts the exact minimum limits (maxIterations 1, commandTimeoutMs 1000)', () => {
+    const cfg = mergeConfig({ maxIterations: 1, commandTimeoutMs: 1000 }, {}, {});
+    expect(cfg.maxIterations).toBe(1);
+    expect(cfg.commandTimeoutMs).toBe(1000);
+  });
+
   it('rejects maxIterations of 0, keeping the default', () => {
     expect(mergeConfig({ maxIterations: 0 }, {}, {}).maxIterations).toBe(50);
   });
