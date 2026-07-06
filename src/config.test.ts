@@ -161,3 +161,37 @@ describe('mergeConfig numeric limit validation', () => {
     expect(cfg.maxIterations).toBe(20);
   });
 });
+
+describe('mergeConfig summary field validation', () => {
+  it('defaults summarizeOnPrune to true and maxSummaryTokens to 1024', () => {
+    const cfg = mergeConfig({}, {}, {});
+    expect(cfg.summarizeOnPrune).toBe(true);
+    expect(cfg.maxSummaryTokens).toBe(1024);
+  });
+
+  it('keeps a valid boolean summarizeOnPrune', () => {
+    expect(mergeConfig({ summarizeOnPrune: false }, {}, {}).summarizeOnPrune).toBe(false);
+    expect(mergeConfig({ summarizeOnPrune: true }, {}, {}).summarizeOnPrune).toBe(true);
+  });
+
+  it('rejects a string "false" for summarizeOnPrune (would be truthy)', () => {
+    expect(mergeConfig({ summarizeOnPrune: 'false' } as any, {}, {}).summarizeOnPrune).toBe(true);
+  });
+
+  it('rejects null / object summarizeOnPrune, keeping the default', () => {
+    expect(mergeConfig({ summarizeOnPrune: null } as any, {}, {}).summarizeOnPrune).toBe(true);
+    expect(mergeConfig({ summarizeOnPrune: {} } as any, {}, {}).summarizeOnPrune).toBe(true);
+  });
+
+  it('keeps a valid integer maxSummaryTokens', () => {
+    expect(mergeConfig({ maxSummaryTokens: 256 }, {}, {}).maxSummaryTokens).toBe(256);
+  });
+
+  it('rejects a string, null, 0, negative, or float maxSummaryTokens', () => {
+    expect(mergeConfig({ maxSummaryTokens: '1024' } as any, {}, {}).maxSummaryTokens).toBe(1024);
+    expect(mergeConfig({ maxSummaryTokens: null } as any, {}, {}).maxSummaryTokens).toBe(1024);
+    expect(mergeConfig({ maxSummaryTokens: 0 }, {}, {}).maxSummaryTokens).toBe(1024);
+    expect(mergeConfig({ maxSummaryTokens: -10 }, {}, {}).maxSummaryTokens).toBe(1024);
+    expect(mergeConfig({ maxSummaryTokens: 12.5 }, {}, {}).maxSummaryTokens).toBe(1024);
+  });
+});

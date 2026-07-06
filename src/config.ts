@@ -87,6 +87,20 @@ function sanitizeIntLimit(value: any, min: number, fallback: number, label: stri
   return fallback;
 }
 
+// Coerce a config-supplied flag to a real boolean. JSON can carry a string
+// ("false" is truthy!), null, or an object here; only an actual boolean is
+// honored, everything else falls back with a warning.
+function sanitizeBool(value: any, fallback: boolean, label: string): boolean {
+  if (typeof value === 'boolean') return value;
+  if (value !== undefined) {
+    console.error(
+      `Warning: ignoring invalid ${label} (${JSON.stringify(value)}); ` +
+        `must be true or false. Using ${fallback}.`
+    );
+  }
+  return fallback;
+}
+
 // Pure merge: DEFAULTS < homeCfg < cwdCfg < env. Exported (no fs) so precedence is
 // unit-testable without touching the real filesystem or $HOME.
 export function mergeConfig(
@@ -137,6 +151,21 @@ export function mergeConfig(
     1000,
     DEFAULTS.commandTimeoutMs,
     'commandTimeoutMs'
+  );
+
+  // Summary-related fields drive boolean branches and API max_tokens, so a
+  // string/null slipping through would silently break behavior ("false" is
+  // truthy) or NaN the summary budget. Coerce to real boolean / positive int.
+  merged.summarizeOnPrune = sanitizeBool(
+    fileCfg.summarizeOnPrune,
+    DEFAULTS.summarizeOnPrune,
+    'summarizeOnPrune'
+  );
+  merged.maxSummaryTokens = sanitizeIntLimit(
+    fileCfg.maxSummaryTokens,
+    1,
+    DEFAULTS.maxSummaryTokens,
+    'maxSummaryTokens'
   );
 
   return merged;

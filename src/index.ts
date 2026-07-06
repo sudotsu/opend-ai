@@ -391,7 +391,7 @@ async function handleLine(line: string): Promise<void> {
     try {
       const data = loadSession(name);
       agent.setHistory(data.messages);
-      agent.setSummary(data.summary || '');
+      agent.setSummary(typeof data.summary === 'string' ? data.summary : '');
       if (data.posture === 'coding' || data.posture === 'raw') {
         agent.setPosture(data.posture);
       }

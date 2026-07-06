@@ -198,8 +198,16 @@ export class VeniceAgent {
       Number.isInteger(config.commandTimeoutMs) && (config.commandTimeoutMs as number) >= 1000
         ? (config.commandTimeoutMs as number)
         : 30000;
-    this.summarizeOnPrune = config.summarizeOnPrune ?? true;
-    this.maxSummaryTokens = config.maxSummaryTokens ?? 1024;
+    // Same defense-in-depth as the limits above: config.ts sanitizes these, but a
+    // direct embedder/test could pass a non-boolean (a truthy string "false" would
+    // wrongly enable summarization) or a bad token budget (NaN-ing the summary
+    // reserve / max_tokens). Force a real boolean and an integer >= 1.
+    this.summarizeOnPrune =
+      typeof config.summarizeOnPrune === 'boolean' ? config.summarizeOnPrune : true;
+    this.maxSummaryTokens =
+      Number.isInteger(config.maxSummaryTokens) && (config.maxSummaryTokens as number) >= 1
+        ? (config.maxSummaryTokens as number)
+        : 1024;
     this.summarizer = config.summarizer ?? this.defaultSummarize.bind(this);
     this.veniceParams = config.veniceParams ?? {
       disableThinking: false,
@@ -244,9 +252,12 @@ export class VeniceAgent {
     return this.summary;
   }
 
-  // Restore the rolling summary when loading a saved session (older saves have none).
+  // Restore the rolling summary when loading a saved session (older saves have
+  // none). Session JSON is untrusted: a non-string (object, number, null) would
+  // survive a `|| ''` guard and later crash summaryMessage()'s `.trim()`. Accept
+  // only a real string; anything else means "no summary".
   setSummary(summary: string) {
-    this.summary = summary || '';
+    this.summary = typeof summary === 'string' ? summary : '';
   }
 
   getPosture(): Posture {

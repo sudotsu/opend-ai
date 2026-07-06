@@ -261,6 +261,31 @@ describe('summarize-on-prune integration', () => {
     expect(sent[sent.length - 1]).toEqual({ role: 'user', content: 'hi' });
   });
 
+  it('defensively clamps a non-boolean summarizeOnPrune and bad maxSummaryTokens', () => {
+    const agent = new VeniceAgent({
+      apiKey: 'test',
+      summarizeOnPrune: 'false' as any, // truthy string must NOT enable summarization by accident
+      maxSummaryTokens: '256' as any // string must not reach arithmetic / max_tokens
+    });
+    expect((agent as any).summarizeOnPrune).toBe(true); // fell back to default boolean
+    expect((agent as any).maxSummaryTokens).toBe(1024); // fell back to default int
+  });
+
+  it('setSummary ignores a non-string summary from a session file without crashing', () => {
+    const agent = new VeniceAgent({ apiKey: 'test' });
+    // A malformed session could carry any JSON type here; none may survive to
+    // reach summaryMessage()'s .trim().
+    for (const bad of [{}, 123, null, undefined, [], true] as any[]) {
+      expect(() => agent.setSummary(bad)).not.toThrow();
+      expect(agent.getSummary()).toBe('');
+      // buildSentMessages() (which calls summaryMessage) must not throw either.
+      expect(() => sentOf(agent)).not.toThrow();
+    }
+    // A real string still round-trips.
+    agent.setSummary('kept memory');
+    expect(agent.getSummary()).toBe('kept memory');
+  });
+
   it('honors summarizeOnPrune:false by dropping without summarizing', async () => {
     let called = false;
     const fake: Summarizer = async () => {
