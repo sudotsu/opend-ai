@@ -12,13 +12,17 @@ export function estTokens(msg: any): number {
   return Math.ceil(chars / 4) + 4;
 }
 
-// Sliding-window trim. Keeps the system message and as many whole recent "rounds"
-// (a user message plus its assistant/tool follow-ups) as fit in the token budget.
+// Sliding-window split. Same boundary/budget logic as pruneHistory, but returns
+// BOTH the kept window and the evicted older rounds, so callers can do something
+// with the evicted content (e.g. summarize it) rather than silently dropping it.
 // Never cuts mid-round, so a `tool` message is never orphaned from its tool_calls.
 // Always keeps at least the current (newest) round, even if it alone exceeds budget.
-// Returns a new array; does not mutate the input.
-export function pruneHistory(messages: any[], budget: number): any[] {
-  if (messages.length <= 1) return messages;
+// Returns new arrays; does not mutate the input.
+export function splitForPrune(
+  messages: any[],
+  budget: number
+): { kept: any[]; evicted: any[] } {
+  if (messages.length <= 1) return { kept: messages, evicted: [] };
   const system = messages[0];
   const rest = messages.slice(1);
 
@@ -26,7 +30,7 @@ export function pruneHistory(messages: any[], budget: number): any[] {
   rest.forEach((m, i) => {
     if (m.role === 'user') boundaries.push(i);
   });
-  if (boundaries.length <= 1) return messages; // only the current round — nothing safe to trim
+  if (boundaries.length <= 1) return { kept: messages, evicted: [] }; // only the current round
 
   const currentRoundStart = boundaries[boundaries.length - 1];
   let acc = estTokens(system);
@@ -41,5 +45,12 @@ export function pruneHistory(messages: any[], budget: number): any[] {
     keepFrom = boundaries[b];
   }
 
-  return keepFrom > 0 ? [system, ...rest.slice(keepFrom)] : messages;
+  if (keepFrom === 0) return { kept: messages, evicted: [] };
+  return { kept: [system, ...rest.slice(keepFrom)], evicted: rest.slice(0, keepFrom) };
+}
+
+// Sliding-window trim: the kept half of splitForPrune. Kept as a thin wrapper so
+// existing callers/tests that only want the trimmed window are unaffected.
+export function pruneHistory(messages: any[], budget: number): any[] {
+  return splitForPrune(messages, budget).kept;
 }

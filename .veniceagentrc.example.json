@@ -38,6 +38,12 @@
   "commandTimeoutMs": 30000,
   "_commandTimeoutMs_comment": "Hard timeout for run_command, in milliseconds. A command still running after this is killed and reported as timed out.",
 
+  "summarizeOnPrune": true,
+  "_summarizeOnPrune_comment": "When old conversation rounds fall out of the context window, condense them into a rolling structured summary (kept in context) instead of dropping them outright. Costs one extra non-streaming model call whenever eviction happens. Set false for the old drop-and-forget behavior.",
+
+  "maxSummaryTokens": 1024,
+  "_maxSummaryTokens_comment": "max_tokens for the summarizer call. Bounds how large the rolling summary can grow (kept well under provider ceilings).",
+
   "veniceParams": {
     "disableThinking": false,
     "stripThinkingResponse": false,

@@ -35,6 +35,8 @@ export interface AppConfig {
   temperature?: number;    // undefined → omit from request, use provider default
   maxIterations: number;   // max tool-call rounds per turn before bailing out
   commandTimeoutMs: number; // run_command hard timeout
+  summarizeOnPrune: boolean; // condense evicted rounds into a rolling summary vs. dropping them
+  maxSummaryTokens: number;  // max_tokens for the summarizer call (bounds summary growth)
   veniceParams: VeniceParams;
 }
 
@@ -51,6 +53,8 @@ const DEFAULTS: Omit<AppConfig, 'apiKey' | 'temperature'> = {
   extraDenylist: [],
   maxIterations: 50,
   commandTimeoutMs: 30000,
+  summarizeOnPrune: true,
+  maxSummaryTokens: 1024,
   veniceParams: {
     disableThinking: false,
     stripThinkingResponse: false,
