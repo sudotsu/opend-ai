@@ -8,6 +8,7 @@ export interface SessionData {
   model: string;
   posture?: string;
   messages: any[];
+  summary?: string; // rolling condensed memory of pruned turns (absent in older saves)
   savedAt: string;
 }
 
