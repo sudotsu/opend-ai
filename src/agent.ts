@@ -1,6 +1,7 @@
 import { OpenAI } from 'openai';
 import { readFile, writeFile, editFile, listDir, runCommand, grepSearch } from './tools.js';
 import { systemPromptFor, type Posture } from './prompts.js';
+import type { VeniceParams } from './config.js';
 import { pruneHistory } from './history.js';
 import { splitThink } from './think.js';
 
@@ -117,6 +118,10 @@ export interface AgentConfig {
   contextTokens?: number;
   maxRetries?: number;
   pricing?: { in: number; out: number };
+  temperature?: number;
+  maxIterations?: number;
+  commandTimeoutMs?: number;
+  veniceParams?: VeniceParams;
   onThinking?: (text: string) => void;
   onContent?: (text: string) => void;
   onToolStart?: (name: string, args: any) => void;
@@ -133,6 +138,10 @@ export class VeniceAgent {
   private contextTokens: number;
   private maxRetries: number;
   private pricing: { in: number; out: number };
+  private temperature?: number;
+  private maxIterations: number;
+  private commandTimeoutMs: number;
+  private veniceParams: VeniceParams;
   private messages: any[] = [];
   private usage = { promptTokens: 0, completionTokens: 0 };
   private onThinking?: (text: string) => void;
@@ -154,6 +163,14 @@ export class VeniceAgent {
     this.contextTokens = config.contextTokens ?? 96000;
     this.maxRetries = config.maxRetries ?? 3;
     this.pricing = config.pricing ?? { in: 0, out: 0 };
+    this.temperature = config.temperature;
+    this.maxIterations = config.maxIterations ?? 50;
+    this.commandTimeoutMs = config.commandTimeoutMs ?? 30000;
+    this.veniceParams = config.veniceParams ?? {
+      disableThinking: false,
+      stripThinkingResponse: false,
+      includeVeniceSystemPrompt: false
+    };
     this.onThinking = config.onThinking;
     this.onContent = config.onContent;
     this.onToolStart = config.onToolStart;
@@ -240,13 +257,16 @@ export class VeniceAgent {
       stream: true,
       stream_options: { include_usage: true }
     };
+    // Only send temperature when explicitly configured; omitting it lets the
+    // provider apply its own default (coercing to 0 would silently change behavior).
+    if (this.temperature !== undefined) body.temperature = this.temperature;
     // `venice_parameters` is a Venice-only extension the OpenAI SDK types don't
     // know about — only attach it when talking to Venice (see constructor).
     if (this.isVenice) {
       body.venice_parameters = {
-        disable_thinking: false,
-        strip_thinking_response: false,
-        include_venice_system_prompt: false
+        disable_thinking: this.veniceParams.disableThinking,
+        strip_thinking_response: this.veniceParams.stripThinkingResponse,
+        include_venice_system_prompt: this.veniceParams.includeVeniceSystemPrompt
       };
     }
     const stream: any = await this.client.chat.completions.create(
@@ -344,7 +364,7 @@ export class VeniceAgent {
   async chat(userInput: string, signal?: AbortSignal): Promise<string> {
     this.messages.push({ role: 'user', content: userInput });
 
-    const MAX_ITERATIONS = 50;
+    const MAX_ITERATIONS = this.maxIterations;
     let iterations = 0;
 
     while (iterations++ < MAX_ITERATIONS) {
@@ -415,7 +435,7 @@ export class VeniceAgent {
               result = listDir(args.path);
               break;
             case 'run_command':
-              result = await runCommand(args.command);
+              result = await runCommand(args.command, this.commandTimeoutMs);
               break;
             case 'grep_search':
               result = grepSearch(args.pattern, args.path);

@@ -24,6 +24,18 @@ describe('THINK_HIGHLIGHT / styleThinkingLine', () => {
     expect([...line.matchAll(THINK_HIGHLIGHT)]).toHaveLength(0);
   });
 
+  it('matches URLs whole (not just their path tail) and bare numbers', () => {
+    const line = 'fetch https://api.venice.ai/api/v1 then wait 30 seconds';
+    const hits = [...line.matchAll(THINK_HIGHLIGHT)].map((m) => m[0]);
+    expect(hits).toEqual(['https://api.venice.ai/api/v1', '30']);
+  });
+
+  it('preserves full line content when styling URLs and numbers', () => {
+    const line = 'retry 3 times against http://localhost:11434/v1 now';
+    const plain = styleThinkingLine(line).replace(/\x1b\[[0-9;]*m/g, '');
+    expect(plain).toBe(line);
+  });
+
   it('preserves the full line content when styled', () => {
     const line = 'call read_file on src/index.ts now';
     const styled = styleThinkingLine(line);

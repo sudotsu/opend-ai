@@ -24,6 +24,24 @@
   "showUsagePerTurn": false,
   "_showUsagePerTurn_comment": "Print a token-usage line after every turn, in addition to the /usage command.",
 
+  "showThinking": true,
+  "_showThinking_comment": "Render the dimmed 'thinking>' reasoning panel in the terminal. Display-only: the model still produces reasoning regardless (that's veniceParams.disableThinking) — this just shows or hides it. Toggle at runtime with /thinking.",
+
   "extraDenylist": [],
-  "_extraDenylist_comment": "Extra regex patterns (as strings) that always require confirmation for run_command, even in bypass mode — on top of the built-in catastrophic-command list."
+  "_extraDenylist_comment": "Extra regex patterns (as strings) that always require confirmation for run_command, even in bypass mode — on top of the built-in catastrophic-command list.",
+
+  "_temperature_comment": "Sampling temperature. OMIT this key entirely to use the provider's default (recommended). If set, it is sent on every request. Can also be set via the VENICE_TEMPERATURE env var.",
+
+  "maxIterations": 50,
+  "_maxIterations_comment": "Max tool-call rounds the agent runs in a single turn before it stops to avoid an infinite loop.",
+
+  "commandTimeoutMs": 30000,
+  "_commandTimeoutMs_comment": "Hard timeout for run_command, in milliseconds. A command still running after this is killed and reported as timed out.",
+
+  "veniceParams": {
+    "disableThinking": false,
+    "stripThinkingResponse": false,
+    "includeVeniceSystemPrompt": false
+  },
+  "_veniceParams_comment": "Venice-only request options (ignored on non-Venice endpoints). disableThinking:false is what makes the model emit its reasoning; stripThinkingResponse:false keeps that reasoning in the response so the CLI can render the dimmed 'thinking>' panel. Set disableThinking:true to turn reasoning off. includeVeniceSystemPrompt:false uses opend's own system prompt instead of Venice's."
 }

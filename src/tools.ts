@@ -101,15 +101,15 @@ export function listDir(dirPath: string): string {
 }
 
 // 5. Run Command Tool
-export function runCommand(command: string): Promise<string> {
+export function runCommand(command: string, timeoutMs: number = 30000): Promise<string> {
   return new Promise((resolve) => {
-    exec(command, { timeout: 30000 }, (error, stdout, stderr) => {
+    exec(command, { timeout: timeoutMs }, (error, stdout, stderr) => {
       let output = '';
       if (stdout) output += 'STDOUT:\n' + stdout + '\n';
       if (stderr) output += 'STDERR:\n' + stderr + '\n';
       if (error) {
         if (error.killed) {
-          resolve('Command timed out after 30 seconds.');
+          resolve(`Command timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
           return;
         }
         output += 'ERROR: ' + error.message + '\n';
