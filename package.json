@@ -1,6 +1,6 @@
 {
   "name": "opend-ai",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "description": "An uncensored, local-first CLI coding agent — streams live reasoning, edits files, runs commands. Provider-agnostic, runs on any OpenAI-compatible uncensored LLM.",
   "keywords": [
     "cli",
