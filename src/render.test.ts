@@ -57,13 +57,19 @@ describe('THINK_HIGHLIGHT / styleThinkingLine', () => {
     expect(hits).toContain('OPENAI_API_KEY');
   });
 
-  it('matches CLI flags and preserves full line content', () => {
+  it('matches CLI flags at token boundaries and preserves full line content', () => {
     const line = 'run npm install --save-dev -g to install globally';
     const hits = [...line.matchAll(THINK_HIGHLIGHT)].map((m) => m[0]);
     expect(hits).toContain('--save-dev');
     expect(hits).toContain('-g');
     const plain = styleThinkingLine(line).replace(/\x1b\[[0-9;]*m/g, '');
     expect(plain).toBe(line);
+  });
+
+  it('does not match flags mid-token (foo--bar must not produce a flag hit)', () => {
+    const line = 'some foo--bar baz';
+    const hits = [...line.matchAll(THINK_HIGHLIGHT)].map((m) => m[0]);
+    expect(hits.some((h) => h.startsWith('-'))).toBe(false);
   });
 });
 

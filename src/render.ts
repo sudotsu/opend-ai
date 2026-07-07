@@ -38,7 +38,7 @@ function colorFor(token: string): (s: string) => string {
 // split-across-chunk names are already reassembled by the time this runs. URLs
 // come first so a full http(s) link is taken whole instead of its path tail.
 export const THINK_HIGHLIGHT =
-  /(https?:\/\/[^\s)]+|`[^`]+`|"[^"]+"|\b(?:read_file|write_file|edit_file|list_dir|run_command|grep_search)\b|\b[\w.\/-]*\/[\w.\/-]+\b|\b[\w-]+\.(?:ts|tsx|js|jsx|json|md|py|sh|ya?ml|txt|css|html)\b|\b[A-Z][A-Z0-9_]{2,}\b|--?[a-z][\w-]*|\b\d[\d,.]*\b)/g;
+  /(https?:\/\/[^\s)]+|`[^`]+`|"[^"]+"|\b(?:read_file|write_file|edit_file|list_dir|run_command|grep_search)\b|\b[\w.\/-]*\/[\w.\/-]+\b|\b[\w-]+\.(?:ts|tsx|js|jsx|json|md|py|sh|ya?ml|txt|css|html)\b|\b[A-Z][A-Z0-9_]{2,}\b|(?<![\w-])--?[a-z][\w-]*|\b\d[\d,.]*\b)/g;
 
 // Styles one complete line of reasoning: dim gray base text, with each
 // highlighted token colored by its kind (path = green, tool = cyan, quote = pink).
