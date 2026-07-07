@@ -7,7 +7,7 @@ import { theme } from './render.js';
 // Pure: parses raw CHANGELOG.md markdown and returns a theme-colored string.
 // Dates become bold tool-colored headings; bullets use dim base text.
 export function formatChangelog(raw: string): string {
-  const lines = raw.split('\n');
+  const lines = raw.replace(/\r\n/g, '\n').split('\n');
   const out: string[] = [];
   for (const line of lines) {
     if (line.startsWith('## ')) {

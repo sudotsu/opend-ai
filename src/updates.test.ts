@@ -33,4 +33,10 @@ describe('formatChangelog', () => {
   it('returns empty string when given empty input', () => {
     expect(formatChangelog('')).toBe('');
   });
+
+  it('does not emit \\r when input has CRLF line endings', () => {
+    const crlf = FIXTURE.replace(/\n/g, '\r\n');
+    const output = formatChangelog(crlf).replace(/\x1b\[[0-9;]*m/g, '');
+    expect(output).not.toContain('\r');
+  });
 });
