@@ -228,7 +228,7 @@ const HELP_TEXT = [
   chalk.cyan('/load <name>') + chalk.gray(' — restore a previously saved conversation'),
   chalk.cyan('/sessions') + chalk.gray(' — list saved conversations'),
   chalk.cyan('/usage') + chalk.gray(' — show token usage (and cost, if pricing is configured)'),
-  chalk.cyan('/updates') + chalk.gray(' — list changes & fixes by date'),
+  chalk.cyan('/updates') + chalk.gray(' — list changes & fixes by date') + chalk.gray(' (alias: ') + chalk.cyan('/latest') + chalk.gray(')'),
   chalk.cyan('/help') + chalk.gray(' — show this list'),
   chalk.cyan('clear') + chalk.gray(' — wipe conversation history'),
   chalk.cyan('exit') + chalk.gray(' / ') + chalk.cyan('quit') + chalk.gray(' — quit (Ctrl+C also cancels an in-flight answer first)')
