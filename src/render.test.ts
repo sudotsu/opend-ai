@@ -71,6 +71,12 @@ describe('THINK_HIGHLIGHT / styleThinkingLine', () => {
     const hits = [...line.matchAll(THINK_HIGHLIGHT)].map((m) => m[0]);
     expect(hits.some((h) => h.startsWith('-'))).toBe(false);
   });
+
+  it('does not treat hyphenated prose as flags', () => {
+    const line = 'this is a well-known state-of-the-art approach';
+    const hits = [...line.matchAll(THINK_HIGHLIGHT)].map((m) => m[0]);
+    expect(hits.some((h) => h.startsWith('-'))).toBe(false);
+  });
 });
 
 describe('summarizeArgs', () => {
