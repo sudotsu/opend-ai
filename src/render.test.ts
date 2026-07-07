@@ -43,6 +43,28 @@ describe('THINK_HIGHLIGHT / styleThinkingLine', () => {
     const plain = styled.replace(/\x1b\[[0-9;]*m/g, '');
     expect(plain).toBe(line);
   });
+
+  it('matches a URL as its own token (not shared with path)', () => {
+    const line = 'call https://api.venice.ai/v1/chat to get a response';
+    const hits = [...line.matchAll(THINK_HIGHLIGHT)].map((m) => m[0]);
+    expect(hits).toContain('https://api.venice.ai/v1/chat');
+  });
+
+  it('matches CONSTANT_CASE env-var tokens', () => {
+    const line = 'set VENICE_BASE_URL and OPENAI_API_KEY before running';
+    const hits = [...line.matchAll(THINK_HIGHLIGHT)].map((m) => m[0]);
+    expect(hits).toContain('VENICE_BASE_URL');
+    expect(hits).toContain('OPENAI_API_KEY');
+  });
+
+  it('matches CLI flags and preserves full line content', () => {
+    const line = 'run npm install --save-dev -g to install globally';
+    const hits = [...line.matchAll(THINK_HIGHLIGHT)].map((m) => m[0]);
+    expect(hits).toContain('--save-dev');
+    expect(hits).toContain('-g');
+    const plain = styleThinkingLine(line).replace(/\x1b\[[0-9;]*m/g, '');
+    expect(plain).toBe(line);
+  });
 });
 
 describe('summarizeArgs', () => {

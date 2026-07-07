@@ -10,6 +10,7 @@ import { loadConfig } from './config.js';
 import { saveSession, loadSession, listSessions } from './session.js';
 import { compileExtraDenylist, isCatastrophic } from './denylist.js';
 import { pink, theme, styleThinkingLine, summarizeArgs } from './render.js';
+import { formatChangelog, loadChangelog } from './updates.js';
 
 const HOME_ENV_PATH = path.join(os.homedir(), '.venice-agent', '.env');
 
@@ -227,6 +228,7 @@ const HELP_TEXT = [
   chalk.cyan('/load <name>') + chalk.gray(' — restore a previously saved conversation'),
   chalk.cyan('/sessions') + chalk.gray(' — list saved conversations'),
   chalk.cyan('/usage') + chalk.gray(' — show token usage (and cost, if pricing is configured)'),
+  chalk.cyan('/updates') + chalk.gray(' — list changes & fixes by date'),
   chalk.cyan('/help') + chalk.gray(' — show this list'),
   chalk.cyan('clear') + chalk.gray(' — wipe conversation history'),
   chalk.cyan('exit') + chalk.gray(' / ') + chalk.cyan('quit') + chalk.gray(' — quit (Ctrl+C also cancels an in-flight answer first)')
@@ -352,6 +354,17 @@ async function handleLine(line: string): Promise<void> {
 
   if (lower === '/usage') {
     printUsage();
+    rl.prompt();
+    return;
+  }
+
+  if (lower === '/updates' || lower === '/latest') {
+    const raw = loadChangelog();
+    if (!raw) {
+      console.log('\n' + chalk.dim('no changelog found') + '\n');
+    } else {
+      console.log('\n' + formatChangelog(raw) + '\n');
+    }
     rl.prompt();
     return;
   }
