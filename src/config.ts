@@ -171,13 +171,23 @@ export function mergeConfig(
   return merged;
 }
 
+// Prefer the current `.opendrc.json`; fall back to the legacy `.veniceagentrc.json`
+// name (from when the tool was "venice-agent") so existing config files keep working.
+function readRcPreferring(primary: string, legacy: string): Record<string, any> {
+  const primaryPath = resolvePath(primary);
+  return fs.existsSync(primaryPath)
+    ? readJsonIfExists(primaryPath)
+    : readJsonIfExists(resolvePath(legacy));
+}
+
 /**
- * Precedence (lowest → highest): DEFAULTS < ~/.veniceagentrc.json <
- * ./.veniceagentrc.json < environment variables. The project-local file overrides
- * the user-global one; env always wins so existing .env workflows keep working.
+ * Precedence (lowest → highest): DEFAULTS < ~/.opendrc.json < ./.opendrc.json <
+ * environment variables. The project-local file overrides the user-global one; env
+ * always wins so existing .env workflows keep working. The legacy `.veniceagentrc.json`
+ * name is still read when the new one is absent.
  */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const homeCfg = readJsonIfExists(resolvePath('~/.veniceagentrc.json'));
-  const cwdCfg = readJsonIfExists(resolvePath('.veniceagentrc.json'));
+  const homeCfg = readRcPreferring('~/.opendrc.json', '~/.veniceagentrc.json');
+  const cwdCfg = readRcPreferring('.opendrc.json', '.veniceagentrc.json');
   return mergeConfig(homeCfg, cwdCfg, env);
 }

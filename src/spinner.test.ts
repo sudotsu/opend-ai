@@ -1,20 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { shimmer, spinnerFrame, PHRASES, ICON_FRAMES } from './spinner.js';
+import { spinnerFrame, PHRASES, SPINNER_FRAMES } from './spinner.js';
 
 const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, '');
-
-describe('shimmer', () => {
-  it('preserves the exact text content at any wave position', () => {
-    const text = 'Unaligning';
-    for (let pos = 0; pos < text.length + 4; pos++) {
-      expect(stripAnsi(shimmer(text, pos))).toBe(text);
-    }
-  });
-
-  it('leaves spaces untouched (no styling on whitespace)', () => {
-    expect(stripAnsi(shimmer('Opening blinds', 3))).toBe('Opening blinds');
-  });
-});
 
 describe('spinnerFrame', () => {
   it('renders the current phrase text within the frame', () => {
@@ -25,19 +12,25 @@ describe('spinnerFrame', () => {
 
   it('rotates to the next phrase after TICKS_PER_PHRASE ticks', () => {
     const first = stripAnsi(spinnerFrame(0));
-    const later = stripAnsi(spinnerFrame(22)); // TICKS_PER_PHRASE = 22
+    const later = stripAnsi(spinnerFrame(26)); // TICKS_PER_PHRASE = 26
     expect(first).toContain(PHRASES[0]);
     expect(later).toContain(PHRASES[1]);
   });
 
-  it('cycles the door glyph through its frames', () => {
-    const glyphs = new Set<string>();
-    for (let t = 0; t < ICON_FRAMES.length; t++) {
-      // The glyph sits between the ▕ ▏ brackets.
-      const m = stripAnsi(spinnerFrame(t)).match(/▕(.)▏/);
-      if (m) glyphs.add(m[1]);
+  it('holds the phrase steady while the glyph advances every tick', () => {
+    // Across one full glyph cycle the phrase should not change (still phrase 0).
+    for (let t = 0; t < SPINNER_FRAMES.length; t++) {
+      expect(stripAnsi(spinnerFrame(t))).toContain(PHRASES[0]);
     }
-    // Several distinct door states appear across a full icon cycle.
-    expect(glyphs.size).toBeGreaterThan(2);
+  });
+
+  it('cycles the spinner glyph through its frames', () => {
+    const glyphs = new Set<string>();
+    for (let t = 0; t < SPINNER_FRAMES.length; t++) {
+      // The glyph is the first non-space character of the stripped frame.
+      glyphs.add(stripAnsi(spinnerFrame(t)).trimStart()[0]);
+    }
+    // A full cycle shows every distinct braille frame.
+    expect(glyphs.size).toBe(SPINNER_FRAMES.length);
   });
 });

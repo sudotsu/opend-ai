@@ -12,26 +12,30 @@ import { compileExtraDenylist, isCatastrophic } from './denylist.js';
 import { pink, theme, styleThinkingLine, summarizeArgs } from './render.js';
 import { formatChangelog, loadChangelog } from './updates.js';
 
-const HOME_ENV_PATH = path.join(os.homedir(), '.venice-agent', '.env');
+const HOME_ENV_PATH = path.join(os.homedir(), '.opend', '.env');
+// Legacy home file from when the tool was "venice-agent"; still read as a fallback.
+const LEGACY_HOME_ENV_PATH = path.join(os.homedir(), '.venice-agent', '.env');
 
-// Project-local .env first (dotenv won't override an already-set var), then a
-// global home file, so the key is found no matter where venice-agent is launched.
-// Precedence for the key ends up: exported env > ./.env > ~/.venice-agent/.env >
-// apiKey in ~/.veniceagentrc.json (resolved in loadConfig).
+// Project-local .env first (dotenv won't override an already-set var), then the
+// global home file, so the key is found no matter where opend is launched. Because
+// dotenv never overrides an already-set var, load order is precedence order:
+// exported env > ./.env > ~/.opend/.env > ~/.venice-agent/.env (legacy) >
+// apiKey in ~/.opendrc.json (resolved in loadConfig).
 dotenv.config();
 dotenv.config({ path: HOME_ENV_PATH });
+dotenv.config({ path: LEGACY_HOME_ENV_PATH });
 
 const config = loadConfig();
 
 if (!config.apiKey) {
-  console.error(chalk.red('\nNo Venice API key found.') + chalk.gray(' Set it up once (works from any directory):'));
-  console.error(chalk.cyan(`  mkdir -p ~/.venice-agent && echo "VENICE_API_KEY=your_key" >> ${HOME_ENV_PATH}`));
+  console.error(theme.danger('\nNo Venice API key found.') + theme.dim(' Set it up once (works from any directory):'));
+  console.error(theme.accent(`  mkdir -p ~/.opend && echo "VENICE_API_KEY=your_key" >> "${HOME_ENV_PATH}"`));
   console.error(
-    chalk.gray('Or export VENICE_API_KEY in your shell, or add ') +
-    chalk.cyan('"apiKey"') +
-    chalk.gray(' to ~/.veniceagentrc.json.')
+    theme.dim('Or export VENICE_API_KEY in your shell, or add ') +
+    theme.accent('"apiKey"') +
+    theme.dim(' to ~/.opendrc.json.')
   );
-  console.error(chalk.gray('Get a key at ') + chalk.underline('https://venice.ai') + '\n');
+  console.error(theme.dim('Get a key at ') + chalk.underline('https://venice.ai') + '\n');
   process.exit(1);
 }
 
@@ -62,7 +66,7 @@ class RenderSession {
   thinking(text: string) {
     this.stopSpinner();
     if (this.mode !== 'thinking') {
-      process.stdout.write('\n' + theme.path.dim.italic('thinking>'));
+      process.stdout.write('\n' + theme.dim('thinking'));
       this.mode = 'thinking';
     }
     this.thinkBuffer += text;
@@ -70,14 +74,14 @@ class RenderSession {
     while ((nl = this.thinkBuffer.indexOf('\n')) !== -1) {
       const line = this.thinkBuffer.slice(0, nl);
       this.thinkBuffer = this.thinkBuffer.slice(nl + 1);
-      process.stdout.write('\n' + chalk.dim('│ ') + styleThinkingLine(line));
+      process.stdout.write('\n' + theme.accent.dim('│ ') + styleThinkingLine(line));
     }
   }
 
   // Emit any buffered partial last line before leaving thinking mode.
   private flushThinking() {
     if (this.thinkBuffer.length > 0) {
-      process.stdout.write('\n' + chalk.dim('│ ') + styleThinkingLine(this.thinkBuffer));
+      process.stdout.write('\n' + theme.accent.dim('│ ') + styleThinkingLine(this.thinkBuffer));
       this.thinkBuffer = '';
     }
   }
@@ -86,7 +90,7 @@ class RenderSession {
     this.stopSpinner();
     if (this.mode === 'thinking') this.flushThinking();
     if (this.mode !== 'content') {
-      process.stdout.write('\n\n' + chalk.bold.magenta('agent> '));
+      process.stdout.write('\n\n' + theme.accent.bold('◆ '));
       this.mode = 'content';
     }
     process.stdout.write(text);
@@ -105,19 +109,19 @@ class RenderSession {
 
   toolEnd(_name: string, result: string) {
     const snippet = result.length > 300 ? result.slice(0, 300) + ' …(truncated)' : result;
-    process.stdout.write(chalk.gray('  ↳ ' + snippet.replace(/\n/g, ' ')) + '\n');
+    process.stdout.write(theme.dim('  ↳ ' + snippet.replace(/\n/g, ' ')) + '\n');
     this.mode = 'none';
   }
 
   notice(message: string) {
     this.stopSpinner();
-    process.stdout.write('\n' + chalk.dim('⚠ ' + message) + '\n');
+    process.stdout.write('\n' + theme.dim('⚠ ' + message) + '\n');
   }
 
   cancelled() {
     this.stopSpinner();
     if (this.mode === 'thinking') this.flushThinking();
-    process.stdout.write('\n' + chalk.yellow('⏹ cancelled') + '\n\n');
+    process.stdout.write('\n' + theme.warn('⏹ cancelled') + '\n\n');
   }
 
   finish() {
@@ -128,7 +132,7 @@ class RenderSession {
 
   error(message: string) {
     this.stopSpinner();
-    console.error(chalk.red('\nAn error occurred: ' + message + '\n'));
+    console.error(theme.danger('\nAn error occurred: ' + message + '\n'));
   }
 }
 
@@ -143,24 +147,26 @@ let showThinking = config.showThinking;
 
 function modeLabel(): string {
   return bypass
-    ? chalk.bold.red('bypass — auto-approving edits/commands')
-    : chalk.bold.green('ask — confirming destructive actions');
+    ? theme.danger.bold('bypass · auto-approving edits & commands')
+    : theme.ok.bold('ask · confirming destructive actions');
 }
 
 function postureLabel(): string {
   return agent.getPosture() === 'raw'
-    ? chalk.bold.yellow('raw — uncensored persona, no coding scaffolding')
-    : chalk.bold.cyan('coding — uncensored agentic coding assistant');
+    ? theme.warn.bold('raw · uncensored persona, no coding scaffolding')
+    : theme.accent.bold('coding · uncensored agentic coding assistant');
 }
 
 function thinkingLabel(): string {
   return showThinking
-    ? chalk.bold.green('shown — reasoning panel visible')
-    : chalk.bold.gray('hidden — reasoning still runs, just not displayed');
+    ? theme.ok.bold('shown · reasoning panel visible')
+    : theme.dim.bold('hidden · reasoning runs, just not shown');
 }
 
+// Ask mode: a single accent chevron. Bypass mode: a red root-style `#` prefix —
+// `#` reads as "root shell / this can bite you", which is exactly bypass's tradeoff.
 function promptText(): string {
-  return bypass ? chalk.bold.red('you (bypass)> ') : chalk.bold.blue('you> ');
+  return bypass ? theme.danger.bold('# ❯ ') : theme.accent.bold('❯ ');
 }
 
 let render: RenderSession | null = null;
@@ -195,17 +201,17 @@ const agent = new VeniceAgent({
     if (bypass && !catastrophic) return true;
 
     if (catastrophic) {
-      console.log('\n' + chalk.bold.red('☠️  CATASTROPHIC COMMAND — confirming even in bypass mode:'));
+      console.log('\n' + theme.danger.bold('☠️  CATASTROPHIC COMMAND — confirming even in bypass mode:'));
     } else {
-      console.log('\n' + chalk.bold.red('⚠️  SECURITY WARNING:'));
+      console.log('\n' + theme.danger.bold('⚠️  SECURITY WARNING:'));
     }
     if (name === 'run_command') {
       console.log('The agent wants to run the following shell command:');
       console.log(chalk.bgBlack.white('  $ ' + args.command));
     } else if (name === 'write_file') {
-      console.log('The agent wants to write to file: ' + chalk.cyan(args.path));
+      console.log('The agent wants to write to file: ' + theme.accent(args.path));
     } else if (name === 'edit_file') {
-      console.log('The agent wants to edit file: ' + chalk.cyan(args.path));
+      console.log('The agent wants to edit file: ' + theme.accent(args.path));
     }
 
     // Use the main `rl` interface for the confirmation question — creating a second
@@ -213,7 +219,7 @@ const agent = new VeniceAgent({
     // interface AND re-emitted to the main rl's 'line' handler when it resumes,
     // producing the "yy" double-input and re-running the same agent turn.
     return new Promise<boolean>((resolve) => {
-      rl.question(chalk.bold.yellow('Do you want to allow this action? (y/N): '), (answer) => {
+      rl.question(theme.warn.bold('Do you want to allow this action? (y/N): '), (answer) => {
         resolve(answer.trim().toLowerCase() === 'y' || answer.trim().toLowerCase() === 'yes');
       });
     });
@@ -221,29 +227,33 @@ const agent = new VeniceAgent({
 });
 
 const HELP_TEXT = [
-  chalk.cyan('/mode') + chalk.gray(' (or /bypass, /auto) — toggle ask ⇄ bypass permission mode'),
-  chalk.cyan('/posture') + chalk.gray(' — toggle coding ⇄ raw system prompt'),
-  chalk.cyan('/thinking') + chalk.gray(' — toggle the reasoning panel shown ⇄ hidden (display only)'),
-  chalk.cyan('/save [name]') + chalk.gray(' — save the current conversation to disk'),
-  chalk.cyan('/load <name>') + chalk.gray(' — restore a previously saved conversation'),
-  chalk.cyan('/sessions') + chalk.gray(' — list saved conversations'),
-  chalk.cyan('/usage') + chalk.gray(' — show token usage (and cost, if pricing is configured)'),
-  chalk.cyan('/updates') + chalk.gray(' — list changes & fixes by date') + chalk.gray(' (alias: ') + chalk.cyan('/latest') + chalk.gray(')'),
-  chalk.cyan('/help') + chalk.gray(' — show this list'),
-  chalk.cyan('clear') + chalk.gray(' — wipe conversation history'),
-  chalk.cyan('exit') + chalk.gray(' / ') + chalk.cyan('quit') + chalk.gray(' — quit (Ctrl+C also cancels an in-flight answer first)')
+  theme.accent('/mode') + theme.dim(' (or /bypass, /auto) — toggle ask ⇄ bypass permission mode'),
+  theme.accent('/posture') + theme.dim(' — toggle coding ⇄ raw system prompt'),
+  theme.accent('/thinking') + theme.dim(' — toggle the reasoning panel shown ⇄ hidden (display only)'),
+  theme.accent('/save [name]') + theme.dim(' — save the current conversation to disk'),
+  theme.accent('/load <name>') + theme.dim(' — restore a previously saved conversation'),
+  theme.accent('/sessions') + theme.dim(' — list saved conversations'),
+  theme.accent('/usage') + theme.dim(' — show token usage (and cost, if pricing is configured)'),
+  theme.accent('/updates') + theme.dim(' — list changes & fixes by date') + theme.dim(' (alias: ') + theme.accent('/latest') + theme.dim(')'),
+  theme.accent('/help') + theme.dim(' — show this list'),
+  theme.accent('clear') + theme.dim(' — wipe conversation history'),
+  theme.accent('exit') + theme.dim(' / ') + theme.accent('quit') + theme.dim(' — quit (Ctrl+C also cancels an in-flight answer first)')
 ].join('\n');
 
 function printBanner() {
-  console.log(chalk.bold.cyan('\n=================================================='));
-  console.log(chalk.bold.cyan('      Venice.ai Agentic CLI Coding Assistant      '));
-  console.log(chalk.bold.cyan('=================================================='));
-  console.log(chalk.gray('Model:    ') + chalk.green(agent.getModel()));
-  console.log(chalk.gray('Mode:     ') + modeLabel());
-  console.log(chalk.gray('Posture:  ') + postureLabel());
-  console.log(chalk.gray('Thinking: ') + thinkingLabel());
-  console.log(chalk.gray('Type ') + chalk.cyan('/help') + chalk.gray(' for all commands.'));
-  console.log(chalk.gray('--------------------------------------------------\n'));
+  const bar = theme.accent('▌');
+  const line = (s = '') => console.log(s ? bar + ' ' + s : bar);
+  const key = (k: string) => theme.dim(k.padEnd(9));
+  console.log('');
+  line(theme.accent.bold('opend') + theme.dim(' · uncensored cli coding agent'));
+  line();
+  line(key('model') + theme.ok(agent.getModel()));
+  line(key('mode') + modeLabel());
+  line(key('posture') + postureLabel());
+  line(key('thinking') + thinkingLabel());
+  line();
+  line(theme.dim('/help for commands'));
+  console.log('');
 }
 
 printBanner();
@@ -270,7 +280,7 @@ function autoSaveOnExit(): void {
       messages: history,
       summary: agent.getSummary(),
     });
-    console.log(chalk.gray('\nAuto-saved session → ' + savedPath));
+    console.log(theme.dim('\nAuto-saved session → ' + savedPath));
   } catch {
     // Best-effort — never crash on exit just because auto-save failed.
   }
@@ -279,11 +289,11 @@ function autoSaveOnExit(): void {
 function printUsage() {
   const u = agent.getUsage();
   let line =
-    chalk.gray('Tokens — prompt: ') + chalk.cyan(u.promptTokens) +
-    chalk.gray(', completion: ') + chalk.cyan(u.completionTokens) +
-    chalk.gray(', total: ') + chalk.cyan(u.totalTokens);
+    theme.dim('Tokens — prompt: ') + theme.accent(u.promptTokens) +
+    theme.dim(', completion: ') + theme.accent(u.completionTokens) +
+    theme.dim(', total: ') + theme.accent(u.totalTokens);
   if (u.priced) {
-    line += chalk.gray(' · cost: ') + chalk.green('$' + u.cost.toFixed(4));
+    line += theme.dim(' · cost: ') + theme.ok('$' + u.cost.toFixed(4));
   }
   console.log('\n' + line + '\n');
 }
@@ -310,14 +320,14 @@ async function handleLine(line: string): Promise<void> {
 
   if (lower === 'exit' || lower === 'quit' || lower === '/exit' || lower === '/quit') {
     autoSaveOnExit();
-    console.log(chalk.cyan('\nGoodbye!'));
+    console.log(theme.accent('\nGoodbye!'));
     process.exit(0);
   }
 
   if (lower === 'clear') {
     agent.clearHistory();
     console.clear();
-    console.log(chalk.cyan('Conversation history cleared.\n'));
+    console.log(theme.accent('Conversation history cleared.\n'));
     rl.prompt();
     return;
   }
@@ -331,7 +341,7 @@ async function handleLine(line: string): Promise<void> {
   if (lower === '/mode' || lower === '/bypass' || lower === '/auto') {
     bypass = !bypass;
     console.log('\nPermission mode → ' + modeLabel() +
-      (bypass ? chalk.gray('  (catastrophic commands still confirmed)') : '') + '\n');
+      (bypass ? theme.dim('  (catastrophic commands still confirmed)') : '') + '\n');
     rl.setPrompt(promptText());
     rl.prompt();
     return;
@@ -361,7 +371,7 @@ async function handleLine(line: string): Promise<void> {
   if (lower === '/updates' || lower === '/latest') {
     const raw = loadChangelog();
     if (!raw) {
-      console.log('\n' + chalk.dim('no changelog found') + '\n');
+      console.log('\n' + theme.dim('no changelog found') + '\n');
     } else {
       console.log('\n' + formatChangelog(raw) + '\n');
     }
@@ -372,12 +382,12 @@ async function handleLine(line: string): Promise<void> {
   if (lower === '/sessions') {
     const sessions = listSessions();
     if (sessions.length === 0) {
-      console.log(chalk.gray('\nNo saved sessions yet. Use /save [name] to create one.\n'));
+      console.log(theme.dim('\nNo saved sessions yet. Use /save [name] to create one.\n'));
     } else {
       console.log('');
       for (const s of sessions) {
         console.log(
-          chalk.cyan(s.name) + chalk.gray(`  (${s.messages} messages, saved ${s.savedAt})`)
+          theme.accent(s.name) + theme.dim(`  (${s.messages} messages, saved ${s.savedAt})`)
         );
       }
       console.log('');
@@ -394,7 +404,7 @@ async function handleLine(line: string): Promise<void> {
       messages: agent.getHistory(),
       summary: agent.getSummary()
     });
-    console.log(chalk.cyan('\nSaved session to ' + savedPath + '\n'));
+    console.log(theme.accent('\nSaved session to ' + savedPath + '\n'));
     rl.prompt();
     return;
   }
@@ -408,9 +418,9 @@ async function handleLine(line: string): Promise<void> {
       if (data.posture === 'coding' || data.posture === 'raw') {
         agent.setPosture(data.posture);
       }
-      console.log(chalk.cyan(`\nLoaded session "${name}" (${data.messages.length} messages).\n`));
+      console.log(theme.accent(`\nLoaded session "${name}" (${data.messages.length} messages).\n`));
     } catch (err: any) {
-      console.error(chalk.red('\n' + err.message + '\n'));
+      console.error(theme.danger('\n' + err.message + '\n'));
     }
     rl.prompt();
     return;
@@ -437,7 +447,7 @@ async function handleLine(line: string): Promise<void> {
 
 rl.on('line', (line) => {
   lineQueue = lineQueue.then(() => handleLine(line)).catch((err: any) => {
-    console.error(chalk.red('\nUnexpected error: ' + err.message + '\n'));
+    console.error(theme.danger('\nUnexpected error: ' + err.message + '\n'));
     rl.prompt();
   });
 });
@@ -451,7 +461,7 @@ rl.on('SIGINT', () => {
     return;
   }
   autoSaveOnExit();
-  console.log(chalk.cyan('\nGoodbye!'));
+  console.log(theme.accent('\nGoodbye!'));
   process.exit(0);
 });
 
@@ -462,7 +472,7 @@ rl.on('close', () => {
   // of a bare process.exit(0) racing ahead and killing a request mid-flight.
   lineQueue = lineQueue.then(() => {
     autoSaveOnExit();
-    console.log(chalk.cyan('\nGoodbye!'));
+    console.log(theme.accent('\nGoodbye!'));
     process.exit(0);
   });
 });

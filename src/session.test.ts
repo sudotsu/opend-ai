@@ -7,7 +7,7 @@ import { saveSession, loadSession, listSessions } from './session.js';
 let dir: string;
 
 beforeEach(() => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'venice-agent-sessions-'));
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-sessions-'));
 });
 
 afterEach(() => {

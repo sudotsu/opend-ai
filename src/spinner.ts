@@ -1,56 +1,43 @@
 import chalk from 'chalk';
 import { theme } from './render.js';
 
-// The live "working…" status line: a rotating on-brand phrase with a brightness
-// wave rolling through its letters, next to a small door-opening glyph. Split into
-// a PURE frame generator (spinnerFrame / shimmer — unit-testable, no I/O) and a
-// thin runtime Spinner class that just drives it on a timer and manages the cursor.
+// The live "working…" status line: one small spinner glyph animating next to a
+// steady, rotating on-brand phrase. Split into a PURE frame generator
+// (spinnerFrame — unit-testable, no I/O) and a thin runtime Spinner class that
+// drives it on a timer and manages the cursor.
+//
+// Design note: motion lives in the glyph, not the text. An earlier version ran a
+// brightness wave across every letter; that read as a busier copy of other tools.
+// One moving glyph + steady words is calmer and more legible.
 
 // On-brand with the tool's "opened / unaligned / uncensored" identity. Edit freely —
 // one array, no other code depends on the specific strings.
 export const PHRASES = [
-  'Opening',
-  'Unaligning',
-  'Opening blinds',
-  'Unlocking',
-  'Unsealing',
-  'Removing guardrails',
-  'Going off-grid',
-  'Unshackling',
-  'Decrypting',
-  'Thinking'
+  'opening',
+  'unaligning',
+  'opening blinds',
+  'unlocking',
+  'unsealing',
+  'removing guardrails',
+  'going off-grid',
+  'unshackling',
+  'decrypting',
+  'thinking'
 ];
 
-// A door/panel fading open, then closing again — reads cleanly in monospace.
-// (Swap for ['🔒','🔒','🔓','🔓'] if you want the padlock instead.)
-export const ICON_FRAMES = ['█', '▓', '▒', '░', ' ', '░', '▒', '▓'];
+// The spinner glyph cycle: standard braille dots, the same family ora/npm use.
+// Smooth at ~12fps and unmistakably "a process is running".
+export const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
-const TICKS_PER_PHRASE = 22; // ~2s per phrase at 90ms/tick
-const WAVE_GAP = 6;          // trailing lull so the wave "resets" between passes
-export const FRAME_MS = 90;
+const TICKS_PER_PHRASE = 26; // ~2s per phrase at 80ms/tick
+export const FRAME_MS = 80;
 
-// One complete line of reasoning text with a brightness wave peaking at `pos`:
-// the letter at `pos` is brightest, immediate neighbors mid, everything else dim.
-// Stripping ANSI from the result returns `text` unchanged (see tests).
-export function shimmer(text: string, pos: number): string {
-  let out = '';
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    const d = Math.abs(i - pos);
-    if (ch === ' ') out += ch;
-    else if (d === 0) out += chalk.whiteBright.bold(ch);
-    else if (d === 1) out += chalk.white(ch);
-    else out += theme.tool.dim(ch);
-  }
-  return out;
-}
-
-// The full status line for a given tick: <icon glyph> <phrase with rolling wave…>.
+// The full status line for a given tick: <spinner glyph> <steady phrase…>.
+// The glyph advances every tick; the phrase changes only every TICKS_PER_PHRASE.
 export function spinnerFrame(tick: number): string {
+  const glyph = SPINNER_FRAMES[tick % SPINNER_FRAMES.length];
   const phrase = PHRASES[Math.floor(tick / TICKS_PER_PHRASE) % PHRASES.length];
-  const icon = ICON_FRAMES[tick % ICON_FRAMES.length];
-  const pos = tick % (phrase.length + WAVE_GAP);
-  return theme.tool('▕') + theme.tool.bold(icon) + theme.tool('▏') + ' ' + shimmer(phrase, pos) + theme.tool.dim('…');
+  return theme.accent(glyph) + ' ' + theme.dim(phrase) + theme.dim('…');
 }
 
 const HIDE_CURSOR = '\x1b[?25l';
