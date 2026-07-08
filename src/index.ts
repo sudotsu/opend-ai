@@ -25,7 +25,7 @@ const config = loadConfig();
 
 if (!config.apiKey) {
   console.error(theme.danger('\nNo Venice API key found.') + theme.dim(' Set it up once (works from any directory):'));
-  console.error(theme.accent(`  mkdir -p ~/.venice-agent && echo "VENICE_API_KEY=your_key" >> ${HOME_ENV_PATH}`));
+  console.error(theme.accent(`  mkdir -p ~/.venice-agent && echo "VENICE_API_KEY=your_key" >> "${HOME_ENV_PATH}"`));
   console.error(
     theme.dim('Or export VENICE_API_KEY in your shell, or add ') +
     theme.accent('"apiKey"') +

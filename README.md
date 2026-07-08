@@ -27,7 +27,7 @@ You can move it whenever you want: any Venice model via `VENICE_MODEL`, or any
 OpenAI-compatible endpoint via `VENICE_BASE_URL`. The most uncensored setup of all is a
 local abliterated model in Ollama, where no API and no provider are involved at all.
 
-```
+```text
 ❯ refactor the config loader to read from env first, then the yaml file
 
 thinking
@@ -65,7 +65,7 @@ cleaned-up reconstructions.
 I asked whether we could save context so I could pick up where I left off. No example
 files, no schema, no hint that it had file tools. It thought for a beat and did this:
 
-```
+```text
 thinking
 │ The user wants persistent context across sessions. I have write_file and edit_file
 │ available. I could create a structured directory with markdown files — one for current
@@ -101,7 +101,7 @@ that's the extent of what I'll show.
 It punches above its size, but it's not GPT-4. Here's a real miss from a Windows
 scripting session:
 
-```
+```text
 ❯ write an AHK v2 script to automate the login form
 
 thinking

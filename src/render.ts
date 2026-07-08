@@ -5,10 +5,14 @@ import chalk from 'chalk';
 // so callers can chain (`theme.tool.bold(...)`). Swap a hex here and it changes
 // everywhere that color is used — the thinking stream, tool headers, and labels
 // in index.ts all import from this object.
+// The one brand color. Both the `tool` token style and the `accent` UI role use
+// it — change this single hex to re-skin the whole UI.
+const BRAND = '#5ccfe6';
+
 export const theme = {
   // ── Token colors (semantic highlighting inside the thinking stream) ──
   path:     chalk.hex('#8fe388'),              // pale green — file paths
-  tool:     chalk.hex('#5ccfe6'),              // cyan — tool names / activity
+  tool:     chalk.hex(BRAND),                  // cyan — tool names / activity
   quote:    chalk.hex('#ff7ac6'),              // pink — quoted & backticked spans
   num:      chalk.hex('#ffd580'),              // amber — bare numbers
   url:      chalk.hex('#82aaff').underline,    // blue underline — full URLs
@@ -17,8 +21,7 @@ export const theme = {
   base:     chalk.dim,                         // dim gray — ordinary reasoning text
 
   // ── UI roles (the chrome: banner, prompts, labels, spinner) ──
-  // One accent color everywhere. Change #5ccfe6 here to re-skin the whole UI.
-  accent:   chalk.hex('#5ccfe6'),              // the single brand color (== tool)
+  accent:   chalk.hex(BRAND),                  // the single brand color (== tool)
   dim:      chalk.dim,                          // muted secondary text
   ok:       chalk.hex('#8fe388'),              // green — healthy / "on" states
   danger:   chalk.hex('#ff6b6b'),              // red — bypass / destructive
