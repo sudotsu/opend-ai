@@ -137,7 +137,7 @@ and this loose. If you want a different one, set `VENICE_BASE_URL` and `VENICE_M
   providers don't choke on it.
 - Small enough to read in one sitting. A handful of single-purpose modules. Fork it,
   gut it, do whatever.
-- Auto-saves on exit. If there's history, it writes to `~/.venice-agent/sessions/` when
+- Auto-saves on exit. If there's history, it writes to `~/.opend/sessions/` when
   you quit. Transient API errors retry with backoff, Ctrl+C cancels mid-stream without
   losing the session, and long conversations slide their context window instead of
   breaking.
@@ -184,14 +184,14 @@ opend                # now works from any directory
 Set your key once (any one of these works from anywhere):
 
 ```bash
-mkdir -p ~/.venice-agent && echo 'VENICE_API_KEY=your_key' > ~/.venice-agent/.env
+mkdir -p ~/.opend && echo 'VENICE_API_KEY=your_key' > ~/.opend/.env
 # or:
 export VENICE_API_KEY=your_key   # add to ~/.zshrc or ~/.bashrc to persist
-# or: add "apiKey": "your_key" to ~/.veniceagentrc.json
+# or: add "apiKey": "your_key" to ~/.opendrc.json
 ```
 
-Key precedence: exported env var, then `./.env`, then `~/.venice-agent/.env`, then
-`apiKey` in `~/.veniceagentrc.json`.
+Key precedence: exported env var, then `./.env`, then `~/.opend/.env`, then
+`apiKey` in `~/.opendrc.json`.
 
 > **WSL note:** a global install inside WSL puts `opend` on the WSL PATH, not Windows.
 > Run it from your WSL shell, or install separately on native Windows.
@@ -237,8 +237,8 @@ any OpenAI-compatible endpoint works cleanly.
 
 ### Config file (optional)
 
-Copy `.veniceagentrc.example.json` to `~/.veniceagentrc.json` (global) or
-`./.veniceagentrc.json` (per-project) to set the model, posture, context budget,
+Copy `.opendrc.example.json` to `~/.opendrc.json` (global) or
+`./.opendrc.json` (per-project) to set the model, posture, context budget,
 retries, pricing, default permission mode, and extra catastrophic-command patterns.
 
 ---
@@ -250,7 +250,7 @@ retries, pricing, default permission mode, and extra catastrophic-command patter
 | `/mode` (or `/bypass`, `/auto`) | Toggle **ask** ↔ **bypass** permission mode |
 | `/posture` | Toggle **coding** ↔ **raw** system prompt |
 | `/thinking` | Toggle the reasoning panel shown ↔ hidden (display only) |
-| `/save [name]` | Save conversation to `~/.venice-agent/sessions/` |
+| `/save [name]` | Save conversation to `~/.opend/sessions/` |
 | `/load <name>` | Restore a saved conversation |
 | `/sessions` | List saved conversations |
 | `/usage` | Show token usage and cost |
@@ -289,7 +289,7 @@ So a small model can't wipe your disk or home directory on one bad guess, even i
   overwrite an important file without asking. Bypass trades safety for speed on purpose.
 - It's a heuristic blocklist, not an exhaustive one. A novel phrasing of something
   destructive can slip past. It catches the obvious disasters, not every conceivable one.
-- Add your own always-confirm patterns via `extraDenylist` in `.veniceagentrc.json`
+- Add your own always-confirm patterns via `extraDenylist` in `.opendrc.json`
   (regex strings).
 
 If you're working on anything you can't afford to lose, stay in ask mode. Use bypass
@@ -309,7 +309,7 @@ deliberately, ideally in a directory or VM where a mistake is recoverable.
 - **`src/prompts.ts`**: two system-prompt postures (`coding` / `raw`)
 - **`src/history.ts`**: pure sliding-window context trimming
 - **`src/think.ts`**: `<think>` tag splitting across streamed chunk boundaries
-- **`src/config.ts`**: merges `.veniceagentrc.json` with env vars
+- **`src/config.ts`**: merges `.opendrc.json` with env vars
 - **`src/session.ts`**: save/load/list conversations
 - **`src/denylist.ts`**: catastrophic-command patterns and the always-confirm check
 - **`src/render.ts`**: thinking-line highlighter and tool-argument summarizer

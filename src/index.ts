@@ -12,24 +12,28 @@ import { compileExtraDenylist, isCatastrophic } from './denylist.js';
 import { pink, theme, styleThinkingLine, summarizeArgs } from './render.js';
 import { formatChangelog, loadChangelog } from './updates.js';
 
-const HOME_ENV_PATH = path.join(os.homedir(), '.venice-agent', '.env');
+const HOME_ENV_PATH = path.join(os.homedir(), '.opend', '.env');
+// Legacy home file from when the tool was "venice-agent"; still read as a fallback.
+const LEGACY_HOME_ENV_PATH = path.join(os.homedir(), '.venice-agent', '.env');
 
-// Project-local .env first (dotenv won't override an already-set var), then a
-// global home file, so the key is found no matter where venice-agent is launched.
-// Precedence for the key ends up: exported env > ./.env > ~/.venice-agent/.env >
-// apiKey in ~/.veniceagentrc.json (resolved in loadConfig).
+// Project-local .env first (dotenv won't override an already-set var), then the
+// global home file, so the key is found no matter where opend is launched. Because
+// dotenv never overrides an already-set var, load order is precedence order:
+// exported env > ./.env > ~/.opend/.env > ~/.venice-agent/.env (legacy) >
+// apiKey in ~/.opendrc.json (resolved in loadConfig).
 dotenv.config();
 dotenv.config({ path: HOME_ENV_PATH });
+dotenv.config({ path: LEGACY_HOME_ENV_PATH });
 
 const config = loadConfig();
 
 if (!config.apiKey) {
   console.error(theme.danger('\nNo Venice API key found.') + theme.dim(' Set it up once (works from any directory):'));
-  console.error(theme.accent(`  mkdir -p ~/.venice-agent && echo "VENICE_API_KEY=your_key" >> "${HOME_ENV_PATH}"`));
+  console.error(theme.accent(`  mkdir -p ~/.opend && echo "VENICE_API_KEY=your_key" >> "${HOME_ENV_PATH}"`));
   console.error(
     theme.dim('Or export VENICE_API_KEY in your shell, or add ') +
     theme.accent('"apiKey"') +
-    theme.dim(' to ~/.veniceagentrc.json.')
+    theme.dim(' to ~/.opendrc.json.')
   );
   console.error(theme.dim('Get a key at ') + chalk.underline('https://venice.ai') + '\n');
   process.exit(1);

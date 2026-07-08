@@ -2,7 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import { resolvePath } from './tools.js';
 
-const DEFAULT_SESSION_DIR = resolvePath('~/.venice-agent/sessions');
+const DEFAULT_SESSION_DIR = resolvePath('~/.opend/sessions');
+// Legacy location from when the tool was named "venice-agent". Still read (so old
+// sessions remain visible/loadable) but never written to. New saves go to ~/.opend.
+const LEGACY_SESSION_DIR = resolvePath('~/.venice-agent/sessions');
 
 export interface SessionData {
   model: string;
@@ -27,7 +30,7 @@ function sessionPath(dir: string, name: string): string {
   return path.join(dir, sanitize(name) + '.json');
 }
 
-// `dir` defaults to `~/.venice-agent/sessions`; overridable for unit tests so they
+// `dir` defaults to `~/.opend/sessions`; overridable for unit tests so they
 // don't touch the real filesystem or $HOME.
 export function saveSession(
   name: string,
@@ -42,15 +45,21 @@ export function saveSession(
 }
 
 export function loadSession(name: string, dir: string = DEFAULT_SESSION_DIR): SessionData {
-  const p = sessionPath(dir, name);
+  let p = sessionPath(dir, name);
+  // Fall back to the legacy ~/.venice-agent location for the default dir only, so a
+  // session saved under the old name still loads. Tests pass an explicit dir → no fallback.
+  if (!fs.existsSync(p) && dir === DEFAULT_SESSION_DIR) {
+    const legacy = sessionPath(LEGACY_SESSION_DIR, name);
+    if (fs.existsSync(legacy)) p = legacy;
+  }
   if (!fs.existsSync(p)) {
     throw new Error(`No saved session named "${name}" (looked in ${dir}).`);
   }
   return JSON.parse(fs.readFileSync(p, 'utf-8'));
 }
 
-export function listSessions(dir: string = DEFAULT_SESSION_DIR): SessionSummary[] {
-  fs.mkdirSync(dir, { recursive: true });
+function readSessionDir(dir: string): SessionSummary[] {
+  if (!fs.existsSync(dir)) return [];
   return fs
     .readdirSync(dir)
     .filter((f) => f.endsWith('.json'))
@@ -62,6 +71,18 @@ export function listSessions(dir: string = DEFAULT_SESSION_DIR): SessionSummary[
       } catch {
         return { name, savedAt: '?', messages: 0 };
       }
-    })
-    .sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+    });
+}
+
+export function listSessions(dir: string = DEFAULT_SESSION_DIR): SessionSummary[] {
+  // For the default dir, also surface legacy ~/.venice-agent sessions. A name present
+  // in both wins from the new location (listed first). Explicit dir → that dir only.
+  const dirs = dir === DEFAULT_SESSION_DIR ? [DEFAULT_SESSION_DIR, LEGACY_SESSION_DIR] : [dir];
+  const byName = new Map<string, SessionSummary>();
+  for (const d of dirs) {
+    for (const s of readSessionDir(d)) {
+      if (!byName.has(s.name)) byName.set(s.name, s);
+    }
+  }
+  return [...byName.values()].sort((a, b) => b.savedAt.localeCompare(a.savedAt));
 }

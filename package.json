@@ -24,7 +24,7 @@
     "LICENSE",
     "CHANGELOG.md",
     ".env.example",
-    ".veniceagentrc.example.json"
+    ".opendrc.example.json"
   ],
   "scripts": {
     "build": "tsc",
