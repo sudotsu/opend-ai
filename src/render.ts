@@ -6,6 +6,7 @@ import chalk from 'chalk';
 // everywhere that color is used — the thinking stream, tool headers, and labels
 // in index.ts all import from this object.
 export const theme = {
+  // ── Token colors (semantic highlighting inside the thinking stream) ──
   path:     chalk.hex('#8fe388'),              // pale green — file paths
   tool:     chalk.hex('#5ccfe6'),              // cyan — tool names / activity
   quote:    chalk.hex('#ff7ac6'),              // pink — quoted & backticked spans
@@ -13,7 +14,15 @@ export const theme = {
   url:      chalk.hex('#82aaff').underline,    // blue underline — full URLs
   constant: chalk.hex('#ff966c'),              // orange — CONSTANT_CASE / env vars
   flag:     chalk.hex('#c099ff'),              // violet — CLI flags (--flag, -f)
-  base:     chalk.dim                          // dim gray — ordinary reasoning text
+  base:     chalk.dim,                         // dim gray — ordinary reasoning text
+
+  // ── UI roles (the chrome: banner, prompts, labels, spinner) ──
+  // One accent color everywhere. Change #5ccfe6 here to re-skin the whole UI.
+  accent:   chalk.hex('#5ccfe6'),              // the single brand color (== tool)
+  dim:      chalk.dim,                          // muted secondary text
+  ok:       chalk.hex('#8fe388'),              // green — healthy / "on" states
+  danger:   chalk.hex('#ff6b6b'),              // red — bypass / destructive
+  warn:     chalk.hex('#ffd580')               // amber — caution states
 };
 
 // Back-compat: `pink` is still imported by index.ts and tests. It's the quote color.
