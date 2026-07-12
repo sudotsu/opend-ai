@@ -4,6 +4,8 @@
   or influences the model's behavior.
 -->
 
+![opend-ai banner](assets/opend-ai-animated-banner-smooth.gif)
+
 # opend-ai
 
 *I built this for myself and cleaned it up enough to share. Claude Code helped me
