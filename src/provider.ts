@@ -13,6 +13,13 @@ export interface ProviderProfile {
   contextTokens: number;
 }
 
+/**
+ * Parses and validates a provider base URL.
+ *
+ * @param raw - The provider base URL to parse
+ * @returns The parsed URL
+ * @throws An error if `raw` is invalid or uses a protocol other than HTTP or HTTPS
+ */
 function parsedUrl(raw: string): URL {
   try {
     const url = new URL(raw);
@@ -25,11 +32,25 @@ function parsedUrl(raw: string): URL {
   }
 }
 
+/**
+ * Determines whether a hostname identifies the local machine.
+ *
+ * @param hostname - The hostname to classify.
+ * @returns `true` if the hostname is `localhost`, `127.0.0.1`, or `::1`, `false` otherwise.
+ */
 function isLocalHost(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
   return host === 'localhost' || host === '127.0.0.1' || host === '::1';
 }
 
+/**
+ * Resolves a provider configuration from an endpoint URL and model name.
+ *
+ * @param baseUrl - The provider endpoint URL.
+ * @param model - The model identifier used by the provider.
+ * @param contextOverride - The context-token limit to use instead of the provider default.
+ * @returns A classified provider profile with endpoint capabilities and context-token settings.
+ */
 export function resolveProviderProfile(
   baseUrl: string,
   model: string,
@@ -85,6 +106,12 @@ export function resolveProviderProfile(
   };
 }
 
+/**
+ * Generates a disclosure describing the provider endpoint and verification status.
+ *
+ * @param profile - The provider profile to describe.
+ * @returns A disclosure identifying the endpoint as local or remote.
+ */
 export function providerDisclosure(profile: ProviderProfile): string {
   if (profile.local) return `${profile.label} · local endpoint · unverified profile`;
   return `${profile.label} · remote provider receives prompts/tool results · unverified live profile`;

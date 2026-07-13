@@ -9,10 +9,24 @@ export interface ApprovalPreview {
 
 const MAX_PREVIEW_CHARS = 20_000;
 
+/**
+ * Determines whether text contains a null byte.
+ *
+ * @param text - The text to inspect
+ * @returns `true` if the text contains a null byte, `false` otherwise.
+ */
 function binary(text: string): boolean {
   return text.includes('\0');
 }
 
+/**
+ * Prefixes text lines and limits the result to a maximum number of lines.
+ *
+ * @param prefix - The prefix applied to each displayed line
+ * @param text - The text to format
+ * @param maxLines - The maximum number of text lines to include
+ * @returns The prefixed lines, including an omission marker when text exceeds the limit
+ */
 function lines(prefix: string, text: string, maxLines = 80): string {
   const all = text.split('\n');
   const shown = all.slice(0, maxLines).map((line) => `${prefix}${line}`);
@@ -20,6 +34,14 @@ function lines(prefix: string, text: string, maxLines = 80): string {
   return shown.join('\n');
 }
 
+/**
+ * Builds a bounded preview of a file creation, overwrite, or edit operation.
+ *
+ * @param name - The tool operation name.
+ * @param args - The operation arguments, including the target path and proposed content or edit.
+ * @param policy - The policy used to resolve the target path.
+ * @returns A preview describing the operation and whether its content is safe to display.
+ */
 export function buildApprovalPreview(name: string, args: any, policy: ToolPolicy): ApprovalPreview {
   const target = resolvePath(args.path, policy);
   const exists = fs.existsSync(target);

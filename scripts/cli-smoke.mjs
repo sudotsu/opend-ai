@@ -4,6 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
+/**
+ * Runs the built CLI with the specified arguments and environment variables.
+ * @param {string[]} args - Arguments passed to the CLI.
+ * @param {Object} [env={}] - Environment variable overrides for the child process.
+ * @return {Promise<{code: number|null, stdout: string, stderr: string}>} The process exit code and captured standard output and error.
+ */
 function run(args, env = {}) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, ['dist/index.js', ...args], {

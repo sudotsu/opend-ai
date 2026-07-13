@@ -12,6 +12,12 @@ export interface ToolPolicy {
   maxOutputChars?: number;
 }
 
+/**
+ * Creates a normalized tool policy with secure default settings.
+ *
+ * @param input - Optional policy overrides.
+ * @returns A tool policy with a real workspace path and default execution, network, timeout, and output limits.
+ */
 export function createToolPolicy(input: Partial<ToolPolicy> = {}): ToolPolicy {
   return {
     workspaceRoot: fs.realpathSync(input.workspaceRoot ?? process.cwd()),
@@ -24,10 +30,23 @@ export function createToolPolicy(input: Partial<ToolPolicy> = {}): ToolPolicy {
   };
 }
 
+/**
+ * Determines whether a target path is within a root path.
+ *
+ * @param root - The root path to check against
+ * @param target - The path to evaluate
+ * @returns `true` if the target equals the root or is located beneath it, `false` otherwise.
+ */
 function within(root: string, target: string): boolean {
   return target === root || target.startsWith(root + path.sep);
 }
 
+/**
+ * Finds the nearest existing filesystem path at or above the target path.
+ *
+ * @param target - The path from which to search upward
+ * @returns The nearest existing path, or `target` if it already exists
+ */
 function nearestExisting(target: string): string {
   let current = target;
   while (!fs.existsSync(current)) {
@@ -38,6 +57,13 @@ function nearestExisting(target: string): string {
   return current;
 }
 
+/**
+ * Resolves a file path within the configured workspace.
+ *
+ * @param filePath - The workspace-relative or absolute path to resolve
+ * @param policy - The policy defining the workspace boundary
+ * @returns The resolved absolute path within the workspace
+ */
 export function resolvePath(filePath: string, policy: ToolPolicy = createToolPolicy()): string {
   if (typeof filePath !== 'string' || filePath.length === 0) throw new Error('path must not be empty');
   const root = fs.realpathSync(policy.workspaceRoot);
@@ -52,10 +78,23 @@ export function resolvePath(filePath: string, policy: ToolPolicy = createToolPol
   return resolved;
 }
 
+/**
+ * Converts an absolute path to a workspace-relative path with forward slashes.
+ *
+ * @param absolutePath - The absolute path to convert
+ * @param policy - The tool policy providing the workspace root
+ * @returns The normalized path relative to the workspace root
+ */
 function relativeForPolicy(absolutePath: string, policy: ToolPolicy): string {
   return path.relative(policy.workspaceRoot, absolutePath).replace(/\\/g, '/');
 }
 
+/**
+ * Determines whether a workspace-relative path identifies a protected file or directory.
+ *
+ * @param relativePath - The workspace-relative path to evaluate
+ * @returns `true` if the path refers to a protected credential, key, or configuration file, `false` otherwise.
+ */
 function isProtected(relativePath: string): boolean {
   const parts = relativePath.toLowerCase().split('/');
   const name = parts.at(-1) ?? '';
@@ -65,11 +104,27 @@ function isProtected(relativePath: string): boolean {
   return /\.(pem|key|p12|pfx)$/.test(name) || /^id_(rsa|dsa|ecdsa|ed25519)$/.test(name);
 }
 
+/**
+ * Ensures that a path is permitted for model access.
+ *
+ * @param absolutePath - The absolute path to check
+ * @param policy - The tool policy used to determine the workspace-relative path
+ * @throws If the path is protected
+ */
 function assertReadable(absolutePath: string, policy: ToolPolicy): void {
   const relative = relativeForPolicy(absolutePath, policy);
   if (isProtected(relative)) throw new Error(`Protected path cannot be read by the model: ${relative}`);
 }
 
+/**
+ * Reads a UTF-8 file, optionally restricting the result to a line range.
+ *
+ * @param filePath - Path to the file relative to the workspace root
+ * @param startLine - First line to include, using one-based numbering
+ * @param endLine - Last line to include, using one-based numbering
+ * @param policy - Access and workspace policy
+ * @returns The requested file content, with large unbounded reads truncated to 20,000 characters
+ */
 export function readFile(filePath: string, startLine?: number, endLine?: number, policy = createToolPolicy()): string {
   const absolutePath = resolvePath(filePath, policy);
   assertReadable(absolutePath, policy);
@@ -88,6 +143,14 @@ export function readFile(filePath: string, startLine?: number, endLine?: number,
   return content;
 }
 
+/**
+ * Writes UTF-8 content to a workspace file.
+ *
+ * @param filePath - The workspace-relative path of the file to write
+ * @param content - The content to write
+ * @param policy - The tool policy governing workspace access
+ * @returns A message confirming the workspace-relative file path
+ */
 export function writeFile(filePath: string, content: string, policy = createToolPolicy()): string {
   const absolutePath = resolvePath(filePath, policy);
   const relative = relativeForPolicy(absolutePath, policy);
@@ -97,6 +160,14 @@ export function writeFile(filePath: string, content: string, policy = createTool
   return `Successfully wrote to ${relative}`;
 }
 
+/**
+ * Replaces one uniquely matching occurrence of text in a workspace file.
+ *
+ * @param oldString - The exact text to replace; it must occur exactly once.
+ * @param newString - The text to write in place of the matching occurrence.
+ * @returns A success message with the edited path and line number, or an error message when no unique match exists.
+ * @throws If `oldString` is empty, the file is protected, or the file does not exist.
+ */
 export function editFile(filePath: string, oldString: string, newString: string, policy = createToolPolicy()): string {
   if (oldString.length === 0) throw new Error('old_string must not be empty');
   const absolutePath = resolvePath(filePath, policy);
@@ -120,6 +191,12 @@ export function editFile(filePath: string, oldString: string, newString: string,
   return `Successfully edited ${relative} at line ${lineNumber}`;
 }
 
+/**
+ * Lists the entries in a directory as formatted JSON.
+ *
+ * @param dirPath - The workspace-relative directory path to list
+ * @returns A JSON array describing each entry's name, type, and size when it is a regular file
+ */
 export function listDir(dirPath: string, policy = createToolPolicy()): string {
   const absolutePath = resolvePath(dirPath, policy);
   assertReadable(absolutePath, policy);
@@ -137,6 +214,11 @@ export function listDir(dirPath: string, policy = createToolPolicy()): string {
   return JSON.stringify(result, null, 2);
 }
 
+/**
+ * Terminates a spawned process and its descendants.
+ *
+ * @param child - The spawned process to terminate
+ */
 function killTree(child: ReturnType<typeof spawn>): void {
   if (!child.pid) return;
   if (process.platform === 'win32') {
@@ -148,6 +230,11 @@ function killTree(child: ReturnType<typeof spawn>): void {
 
 let bubblewrapProbe: string | null | undefined;
 
+/**
+ * Verifies that Bubblewrap is installed and usable for sandboxed execution.
+ *
+ * @throws An error if Bubblewrap is unavailable or fails its functional check.
+ */
 function requireBubblewrap(): void {
   if (bubblewrapProbe !== undefined) {
     if (bubblewrapProbe) throw new Error(bubblewrapProbe);
@@ -170,6 +257,12 @@ function requireBubblewrap(): void {
   bubblewrapProbe = null;
 }
 
+/**
+ * Lists the directory parents of a target path from the filesystem root downward.
+ *
+ * @param target - The path whose parent directories are listed
+ * @returns Directory paths ordered from the highest parent to the immediate parent
+ */
 function destinationParents(target: string): string[] {
   const parents: string[] = [];
   let current = path.dirname(target);
@@ -177,6 +270,11 @@ function destinationParents(target: string): string[] {
   return parents;
 }
 
+/**
+ * Builds read-only mount arguments for available system directories.
+ *
+ * @returns Bubblewrap arguments for mounting `/usr`, `/bin`, `/lib`, and `/lib64`
+ */
 function systemMountArgs(): string[] {
   const args: string[] = [];
   for (const target of ['/usr', '/bin', '/lib', '/lib64']) {
@@ -188,16 +286,32 @@ function systemMountArgs(): string[] {
   return args;
 }
 
+/**
+ * Determines the runtime installation prefix from the Node.js executable path.
+ *
+ * @returns The directory two levels above the resolved Node.js executable.
+ */
 function runtimePrefix(): string {
   return path.dirname(path.dirname(fs.realpathSync(process.execPath)));
 }
 
+/**
+ * Builds read-only mount arguments for the runtime directory.
+ *
+ * @returns An empty array for standard system runtime directories; otherwise, arguments that read-only bind the runtime directory to itself.
+ */
 function runtimeMountArgs(): string[] {
   const prefix = runtimePrefix();
   if (prefix === '/usr' || prefix === '/usr/local' || prefix === '/') return [];
   return ['--ro-bind', prefix, prefix];
 }
 
+/**
+ * Builds the environment variables used for command execution.
+ *
+ * @param policy - Tool policy providing the workspace path
+ * @returns The command execution environment
+ */
 function commandEnvironment(policy: ToolPolicy): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {
     PATH: `${path.join(runtimePrefix(), 'bin')}:/usr/local/bin:/usr/bin:/bin`,
@@ -212,6 +326,14 @@ function commandEnvironment(policy: ToolPolicy): NodeJS.ProcessEnv {
   return env;
 }
 
+/**
+ * Builds a Bubblewrap command that executes a shell command in the configured sandbox.
+ *
+ * @param command - The shell command to execute
+ * @param policy - Execution settings, including the workspace root and network access
+ * @returns The Bubblewrap executable and its arguments
+ * @throws If secure execution is unavailable on Windows or Bubblewrap is unavailable
+ */
 function sandboxCommand(command: string, policy: ToolPolicy): { executable: string; args: string[] } {
   if (process.platform === 'win32') {
     throw new Error('Secure command execution is unavailable on native Windows. Use WSL/container support or explicitly select unsafe-host.');
@@ -237,6 +359,13 @@ function sandboxCommand(command: string, policy: ToolPolicy): { executable: stri
   return { executable: 'bwrap', args };
 }
 
+/**
+ * Executes a shell command according to the configured execution policy.
+ *
+ * @param command - The shell command to execute
+ * @param policy - Execution, workspace, timeout, network, and output settings
+ * @returns The command output, error details, timeout message, or a success message when no output is produced
+ */
 export function runCommand(command: string, policy: ToolPolicy = createToolPolicy()): Promise<string> {
   let launch: { executable: string; args: string[] };
   try {
@@ -285,6 +414,14 @@ export function runCommand(command: string, policy: ToolPolicy = createToolPolic
   });
 }
 
+/**
+ * Searches files under a workspace path for case-insensitive regular expression matches.
+ *
+ * @param pattern - The regular expression pattern to search for
+ * @param searchPath - The workspace-relative file or directory to search
+ * @param policy - The tool policy governing workspace access
+ * @returns A JSON array containing up to 100 matching file paths, line numbers, and trimmed line content
+ */
 export function grepSearch(pattern: string, searchPath: string, policy = createToolPolicy()): string {
   const absolutePath = resolvePath(searchPath, policy);
   assertReadable(absolutePath, policy);

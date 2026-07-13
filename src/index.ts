@@ -30,6 +30,12 @@ type CliOptions = {
   workspace: string;
 };
 
+/**
+ * Parses command-line arguments into CLI options.
+ *
+ * @param argv - Command-line arguments excluding the executable path
+ * @returns Parsed command, flags, workspace, execution profile, and optional prompt
+ */
 function parseCli(argv: string[]): CliOptions {
   const options: CliOptions = {
     command: argv[0] === 'exec' ? 'exec' : 'interactive',
@@ -384,6 +390,13 @@ const HELP_TEXT = [
   theme.accent('exit') + theme.dim(' / ') + theme.accent('quit') + theme.dim(' — quit (Ctrl+C also cancels an in-flight answer first)')
 ].join('\n');
 
+/**
+ * Summarizes Git changes in the configured workspace.
+ *
+ * Includes repository status, staged and unstaged diffs, and previews of untracked regular files.
+ *
+ * @returns A formatted change summary, or a message indicating that the workspace is not a supported Git repository or has no changes.
+ */
 function workspaceDiff(): string {
   const status = spawnSync('git', ['status', '--short', '--untracked-files=all'], { cwd: toolPolicy.workspaceRoot, encoding: 'utf-8' });
   if (status.status !== 0) return 'Current workspace is not a supported Git repository.';
@@ -405,6 +418,9 @@ function workspaceDiff(): string {
   return output || 'No Git changes in the workspace.';
 }
 
+/**
+ * Prints the interactive CLI banner with agent, workspace, execution boundary, and session settings.
+ */
 function printBanner() {
   const bar = theme.accent('▌');
   const line = (s = '') => console.log(s ? bar + ' ' + s : bar);
@@ -448,7 +464,9 @@ rl = readline.createInterface({
 rl.prompt();
 
 // Silently saves the current conversation when the session ends so work is
-// never lost just because the user forgot to /save. Skips if history is empty.
+/**
+ * Saves the current session on exit when automatic saving is enabled and the conversation contains user or assistant messages.
+ */
 function autoSaveOnExit(): void {
   if (!config.autoSave) return;
   const history = agent.getHistory();
@@ -491,6 +509,11 @@ function printUsage() {
 let lineQueue: Promise<void> = Promise.resolve();
 let automaticCheckpoint: string | null = null;
 
+/**
+ * Processes an interactive CLI input line as a command or agent prompt.
+ *
+ * @param line - The raw input line to process
+ */
 async function handleLine(line: string): Promise<void> {
   const input = line.trim();
 

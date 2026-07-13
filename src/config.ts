@@ -108,7 +108,17 @@ function sanitizeBool(value: any, fallback: boolean, label: string): boolean {
 }
 
 // Pure merge: DEFAULTS < homeCfg < cwdCfg < env. Exported (no fs) so precedence is
-// unit-testable without touching the real filesystem or $HOME.
+/**
+ * Combines configuration files and environment variables into a validated runtime configuration.
+ *
+ * Configuration precedence is defaults, home configuration, current-directory configuration, then
+ * environment variables. Invalid numeric and boolean overrides use safe defaults.
+ *
+ * @param homeCfg - Configuration loaded from the user's home directory
+ * @param cwdCfg - Configuration loaded from the current directory
+ * @param env - Environment variables that may override configuration values
+ * @returns The merged and validated application configuration
+ */
 export function mergeConfig(
   homeCfg: Record<string, any>,
   cwdCfg: Record<string, any>,

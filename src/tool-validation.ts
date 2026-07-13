@@ -8,6 +8,12 @@ const MAX_CONTENT = 1_000_000;
 const MAX_COMMAND = 32_000;
 const MAX_PATTERN = 1_000;
 
+/**
+ * Validates and returns a JSON object containing tool arguments.
+ *
+ * @param value - The value to validate as a JSON object
+ * @returns The validated arguments object
+ */
 function objectArgs(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('arguments must be a JSON object');
@@ -15,6 +21,15 @@ function objectArgs(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+/**
+ * Validates and returns a string argument with optional emptiness and length constraints.
+ *
+ * @param args - The arguments object containing the value.
+ * @param key - The key of the value to validate.
+ * @param options - Validation options for allowing empty strings and setting the maximum length.
+ * @returns The validated string.
+ * @throws Error If the value is not a string, is empty when empty strings are disallowed, or exceeds the character limit.
+ */
 function text(
   args: Record<string, unknown>,
   key: string,
@@ -29,6 +44,13 @@ function text(
   return value;
 }
 
+/**
+ * Validates an optional line number argument.
+ *
+ * @param args - The arguments object containing the value.
+ * @param key - The name of the line number argument.
+ * @returns The validated line number, or `undefined` when the argument is absent.
+ */
 function line(args: Record<string, unknown>, key: string): number | undefined {
   const value = args[key];
   if (value === undefined) return undefined;
@@ -38,6 +60,14 @@ function line(args: Record<string, unknown>, key: string): number | undefined {
   return value as number;
 }
 
+/**
+ * Validates a raw tool invocation and returns its normalized arguments.
+ *
+ * @param name - The tool name used to select the expected arguments.
+ * @param raw - The raw arguments value to validate.
+ * @returns The validated tool name and arguments.
+ * @throws Error if the arguments are invalid or the tool name is unknown.
+ */
 export function validateToolCall(name: string, raw: unknown): ValidatedToolCall {
   const args = objectArgs(raw);
   switch (name) {

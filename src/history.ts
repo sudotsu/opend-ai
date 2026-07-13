@@ -6,7 +6,12 @@
 // Conservative provider-independent estimate. UTF-8 bytes avoid dramatically
 // undercounting CJK/emoji/non-English text the way characters/4 does. Provider
 // profiles still own the actual context ceiling and overflow recovery remains the
-// final authority because no generic tokenizer can exactly model every endpoint.
+/**
+ * Estimates the token count of a message using its UTF-8 content, tool calls, and name.
+ *
+ * @param msg - The message whose token usage is estimated
+ * @returns A conservative estimated token count
+ */
 export function estTokens(msg: any): number {
   let bytes = 0;
   if (typeof msg?.content === 'string') bytes += Buffer.byteLength(msg.content, 'utf8');

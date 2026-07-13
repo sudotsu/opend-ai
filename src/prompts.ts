@@ -46,6 +46,13 @@ You have tools available (read_file, write_file, edit_file, list_dir, run_comman
 export const SYSTEM_PROMPT_CODING = codingPrompt({ model: 'configured model', provider: 'configured provider' });
 export const SYSTEM_PROMPT_RAW = rawPrompt({ model: 'configured model', provider: 'configured provider' });
 
+/**
+ * Builds the system prompt for the specified posture and model identity.
+ *
+ * @param posture - The prompt posture, either `coding` or `raw`
+ * @param identity - The model and provider details to include in the prompt
+ * @returns The generated system prompt for the selected posture
+ */
 export function systemPromptFor(
   posture: Posture,
   identity: ModelIdentity = { model: 'configured model', provider: 'configured provider' }
