@@ -2,7 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { commandEnvironment, createToolPolicy, editFile, grepSearch, readFile, runCommand, writeFile } from './tools.js';
+import { commandEnvironment, createToolPolicy, editFile, grepSearch, previewUntrackedFiles, readFile, runCommand, writeFile } from './tools.js';
 
 let dir: string;
 beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-tools-')); });
@@ -87,10 +87,39 @@ describe('workspace tool policy', () => {
         expect(env.HOME).toBe(path.join(tempRoot, 'opend-home'));
         expect(env.TMPDIR).toBe(tempRoot);
       }
-      const result = await runCommand('node -p process.env.OPEND_WORKSPACE', policy);
+      const result = await runCommand('node -p "process.env.OPEND_WORKSPACE"', policy);
       expect(result).toContain(dir);
     } finally {
       fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('bounds untracked previews and skips protected paths and symlinks', () => {
+    const policy = createToolPolicy({ workspaceRoot: dir });
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-preview-outside-'));
+    try {
+      fs.writeFileSync(path.join(dir, 'safe-one.txt'), 'safe one');
+      fs.writeFileSync(path.join(dir, 'safe-two.txt'), 'safe two');
+      fs.writeFileSync(path.join(dir, 'safe-three.txt'), 'safe three');
+      fs.writeFileSync(path.join(dir, '.netrc'), 'protected secret');
+      const outsideFile = path.join(outside, 'secret.txt');
+      fs.writeFileSync(outsideFile, 'outside secret');
+      fs.symlinkSync(outsideFile, path.join(dir, 'linked-secret.txt'));
+
+      const guarded = previewUntrackedFiles(['safe-one.txt', '.netrc', 'linked-secret.txt'], policy);
+      expect(guarded).toContain('safe one');
+      expect(guarded).toContain('protected path not previewed');
+      expect(guarded).toMatch(/linked-secret\.txt \((?:symlink not previewed|preview unavailable:.*symlink)/);
+      expect(guarded).not.toContain('protected secret');
+      expect(guarded).not.toContain('outside secret');
+
+      const bounded = previewUntrackedFiles(['safe-one.txt', 'safe-two.txt', 'safe-three.txt'], policy, 2);
+      expect(bounded).toContain('safe one');
+      expect(bounded).toContain('safe two');
+      expect(bounded).not.toContain('safe three');
+      expect(bounded).toContain('1 additional paths omitted; preview limit 2');
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
     }
   });
 

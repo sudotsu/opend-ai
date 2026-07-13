@@ -13,7 +13,7 @@ import { saveSession, loadSession, listSessions, deleteSession, pruneSessions } 
 import { compileExtraDenylist, isCatastrophic } from './denylist.js';
 import { pink, theme, styleThinkingLine, summarizeArgs } from './render.js';
 import { formatChangelog, loadChangelog } from './updates.js';
-import { createToolPolicy, type ExecutionProfile } from './tools.js';
+import { createToolPolicy, previewUntrackedFiles, type ExecutionProfile } from './tools.js';
 import { resolveProviderProfile, providerDisclosure } from './provider.js';
 import { buildApprovalPreview } from './preview.js';
 import { createCheckpoint, restoreCheckpoint, listCheckpoints } from './checkpoint.js';
@@ -413,18 +413,7 @@ function workspaceDiff(): string {
   const diff = spawnSync('git', ['diff', '--no-ext-diff', '--', '.'], { cwd: toolPolicy.workspaceRoot, encoding: 'utf-8' });
   const cached = spawnSync('git', ['diff', '--cached', '--no-ext-diff', '--', '.'], { cwd: toolPolicy.workspaceRoot, encoding: 'utf-8' });
   const untracked = status.stdout.split('\n').filter((line) => line.startsWith('?? ')).map((line) => line.slice(3));
-  const untrackedPreviews = untracked.map((relative) => {
-    const target = path.join(toolPolicy.workspaceRoot, relative);
-    try {
-      const stats = fs.statSync(target);
-      if (!stats.isFile()) return `UNTRACKED ${relative} (not a regular file)`;
-      if (stats.size > 1_000_000) return `UNTRACKED ${relative} (too large to preview)`;
-      const content = fs.readFileSync(target, 'utf-8');
-      return `UNTRACKED ${relative}\n${content.slice(0, 20000)}${content.length > 20000 ? '\n… truncated' : ''}`;
-    } catch (error: any) {
-      return `UNTRACKED ${relative} (preview unavailable: ${error.message})`;
-    }
-  }).join('\n\n');
+  const untrackedPreviews = previewUntrackedFiles(untracked, toolPolicy);
   const output = [status.stdout.trim(), cached.stdout.trim(), diff.stdout.trim(), untrackedPreviews].filter(Boolean).join('\n\n');
   return output || 'No Git changes in the workspace.';
 }

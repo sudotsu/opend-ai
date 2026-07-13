@@ -5,6 +5,7 @@ import { spawn, spawnSync } from 'child_process';
 import { RE2JS } from 're2js';
 
 const MAX_FILE_BYTES = 1_000_000;
+const MAX_UNTRACKED_PREVIEWS = 100;
 
 export type ExecutionProfile = 'sandbox' | 'unsafe-host';
 
@@ -99,7 +100,7 @@ function relativeForPolicy(absolutePath: string, policy: ToolPolicy): string {
  * @param relativePath - The workspace-relative path to evaluate
  * @returns `true` if the path refers to a protected credential, key, or configuration file, `false` otherwise.
  */
-function isProtected(relativePath: string): boolean {
+export function isProtected(relativePath: string): boolean {
   const parts = relativePath.toLowerCase().split('/');
   const name = parts.at(-1) ?? '';
   if (parts.includes('.ssh') || parts.includes('.aws') || parts.includes('.gnupg') || parts.includes('.git')) return true;
@@ -410,6 +411,7 @@ export function runCommand(command: string, policy: ToolPolicy = createToolPolic
       detached: process.platform !== 'win32',
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
+      windowsVerbatimArguments: process.platform === 'win32',
       env: commandEnvironment(policy)
     });
     let stdout = '';
@@ -447,6 +449,41 @@ export function runCommand(command: string, policy: ToolPolicy = createToolPolic
       finish(output || 'Command executed successfully with no output.');
     });
   });
+}
+
+/**
+ * Builds bounded previews for Git-reported untracked paths without following symlinks or reading protected files.
+ *
+ * @param filePaths - Workspace-relative untracked paths reported by Git
+ * @param policy - Workspace policy used for containment and protected-path checks
+ * @param limit - Maximum number of paths to inspect
+ * @returns Formatted untracked-file previews and an omission notice when the limit is exceeded
+ */
+export function previewUntrackedFiles(
+  filePaths: string[],
+  policy: ToolPolicy = createToolPolicy(),
+  limit = MAX_UNTRACKED_PREVIEWS
+): string {
+  const previews = filePaths.slice(0, limit).map((relative) => {
+    try {
+      if (isProtected(relative.replace(/\\/g, '/'))) return `UNTRACKED ${relative} (protected path not previewed)`;
+      const target = resolvePath(relative, policy);
+      const lexicalTarget = path.resolve(policy.workspaceRoot, relative);
+      const lexicalStats = fs.lstatSync(lexicalTarget);
+      if (lexicalStats.isSymbolicLink()) return `UNTRACKED ${relative} (symlink not previewed)`;
+      const stats = fs.lstatSync(target);
+      if (!stats.isFile()) return `UNTRACKED ${relative} (not a regular file)`;
+      if (stats.size > MAX_FILE_BYTES) return `UNTRACKED ${relative} (too large to preview)`;
+      const content = fs.readFileSync(target, 'utf-8');
+      return `UNTRACKED ${relative}\n${content.slice(0, 20000)}${content.length > 20000 ? '\n… truncated' : ''}`;
+    } catch (error: any) {
+      return `UNTRACKED ${relative} (preview unavailable: ${error.message})`;
+    }
+  });
+  if (filePaths.length > limit) {
+    previews.push(`UNTRACKED (${filePaths.length - limit} additional paths omitted; preview limit ${limit})`);
+  }
+  return previews.join('\n\n');
 }
 
 /**
