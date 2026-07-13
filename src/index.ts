@@ -414,6 +414,7 @@ function workspaceDiff(): string {
     try {
       const stats = fs.statSync(target);
       if (!stats.isFile()) return `UNTRACKED ${relative} (not a regular file)`;
+      if (stats.size > 1_000_000) return `UNTRACKED ${relative} (too large to preview)`;
       const content = fs.readFileSync(target, 'utf-8');
       return `UNTRACKED ${relative}\n${content.slice(0, 20000)}${content.length > 20000 ? '\n… truncated' : ''}`;
     } catch (error: any) {
