@@ -1,8 +1,8 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { saveSession, loadSession, listSessions } from './session.js';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { saveSession, loadSession, listSessions, deleteSession, pruneSessions } from './session.js';
 
 let dir: string;
 
@@ -11,6 +11,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -51,5 +52,58 @@ describe('session save/load/list', () => {
 
   it('returns an empty list for a directory with no sessions', () => {
     expect(listSessions(dir)).toEqual([]);
+  });
+
+  it('uses least-privilege permissions and redacts common secrets', () => {
+    const p = saveSession('secure', { model: 'm', messages: [{ role: 'user', content: 'api_key=supersecretvalue sk-abcdefghijklmnop' }] }, dir);
+    if (process.platform !== 'win32') {
+      expect(fs.statSync(dir).mode & 0o777).toBe(0o700);
+      expect(fs.statSync(p).mode & 0o777).toBe(0o600);
+    }
+    const raw = fs.readFileSync(p, 'utf-8');
+    expect(raw).not.toContain('supersecretvalue');
+    expect(raw).not.toContain('sk-abcdefghijklmnop');
+  });
+
+  it('deletes named sessions and prunes expired sessions', () => {
+    const p = saveSession('old', { model: 'm', messages: [] }, dir);
+    fs.utimesSync(p, new Date(0), new Date(0));
+    expect(pruneSessions(30, dir)).toBe(1);
+    saveSession('new', { model: 'm', messages: [] }, dir);
+    expect(deleteSession('new', dir)).toBe(true);
+    expect(deleteSession('new', dir)).toBe(false);
+  });
+
+  it('skips broken symlinks and race-disappeared entries while pruning', () => {
+    fs.symlinkSync(path.join(dir, 'missing-target'), path.join(dir, 'broken.json'));
+    const raced = path.join(dir, 'raced.json');
+    fs.writeFileSync(raced, '{}');
+    const realLstat = fs.lstatSync.bind(fs);
+    vi.spyOn(fs, 'lstatSync').mockImplementation(((target: fs.PathLike) => {
+      if (target === raced) throw Object.assign(new Error('disappeared'), { code: 'ENOENT' });
+      return realLstat(target);
+    }) as any);
+    expect(pruneSessions(30, dir)).toBe(0);
+    expect(fs.lstatSync(path.join(dir, 'broken.json')).isSymbolicLink()).toBe(true);
+  });
+
+  it('continues after an individual expired-session removal failure', () => {
+    const blocked = saveSession('blocked', { model: 'm', messages: [] }, dir);
+    const removable = saveSession('removable', { model: 'm', messages: [] }, dir);
+    fs.utimesSync(blocked, new Date(0), new Date(0));
+    fs.utimesSync(removable, new Date(0), new Date(0));
+    const realRemove = fs.rmSync.bind(fs);
+    vi.spyOn(fs, 'rmSync').mockImplementation(((target: fs.PathLike, options?: fs.RmOptions) => {
+      if (target === blocked) throw Object.assign(new Error('permission denied'), { code: 'EACCES' });
+      return realRemove(target, options);
+    }) as any);
+    expect(pruneSessions(30, dir)).toBe(1);
+    expect(fs.existsSync(blocked)).toBe(true);
+    expect(fs.existsSync(removable)).toBe(false);
+  });
+
+  it('treats session-directory enumeration failure as best-effort maintenance', () => {
+    vi.spyOn(fs, 'readdirSync').mockImplementationOnce(() => { throw new Error('unreadable directory'); });
+    expect(pruneSessions(30, dir)).toBe(0);
   });
 });

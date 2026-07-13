@@ -1,0 +1,36 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { describe, it, expect, afterEach } from 'vitest';
+import { buildApprovalPreview } from './preview.js';
+import { createToolPolicy } from './tools.js';
+
+const dirs: string[] = [];
+afterEach(() => { for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true }); });
+
+describe('approval previews', () => {
+  it('labels create/overwrite/edit and displays proposed content', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-preview-')); dirs.push(dir);
+    const policy = createToolPolicy({ workspaceRoot: dir });
+    expect(buildApprovalPreview('write_file', { path: 'a.txt', content: 'new' }, policy)).toMatchObject({ safe: true, operation: 'create' });
+    fs.writeFileSync(path.join(dir, 'a.txt'), 'old');
+    expect(buildApprovalPreview('write_file', { path: 'a.txt', content: 'new' }, policy).text).toContain('+new');
+    expect(buildApprovalPreview('edit_file', { path: 'a.txt', old_string: 'old', new_string: 'new' }, policy).text).toContain('-old');
+  });
+
+  it('fails safely when a bounded text preview is impossible', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-preview-')); dirs.push(dir);
+    const policy = createToolPolicy({ workspaceRoot: dir });
+    expect(buildApprovalPreview('write_file', { path: 'a', content: '\0binary' }, policy).safe).toBe(false);
+    fs.writeFileSync(path.join(dir, 'large'), 'x'.repeat(20_001));
+    expect(buildApprovalPreview('write_file', { path: 'large', content: 'small' }, policy).safe).toBe(false);
+  });
+
+  it('rejects binary old and new edit strings independently', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-preview-')); dirs.push(dir);
+    const policy = createToolPolicy({ workspaceRoot: dir });
+    fs.writeFileSync(path.join(dir, 'a.txt'), 'old');
+    expect(buildApprovalPreview('edit_file', { path: 'a.txt', old_string: 'old\0', new_string: 'new' }, policy).safe).toBe(false);
+    expect(buildApprovalPreview('edit_file', { path: 'a.txt', old_string: 'old', new_string: 'new\0' }, policy).safe).toBe(false);
+  });
+});

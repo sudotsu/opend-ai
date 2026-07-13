@@ -1,5 +1,6 @@
-// Commands so destructive they prompt even in bypass mode, so a small model can't
-// wipe a disk or the filesystem on a single bad call. Pure/testable — no I/O.
+// Defense-in-depth warning patterns. These are intentionally NOT a security
+// boundary: shell syntax is too flexible for a regex blocklist to be exhaustive.
+// Workspace/process/network containment is enforced independently by ToolPolicy.
 
 export const CATASTROPHIC: RegExp[] = [
   /\brm\s+(-[a-z]*\s+)*(-[a-z]*r[a-z]*f|-[a-z]*f[a-z]*r)\b.*\s(\/|~|\/\*|\.\/\*|\$HOME)\s*$/i,

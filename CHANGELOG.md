@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-12
+- Add workspace-scoped file policy and fail-closed Bubblewrap command isolation
+- Add provider profiles, local no-key onboarding, exact provider identity, and context-overflow recovery
+- Add bounded file approval previews, Git diff visibility, checkpoints, and standard CLI flags/exec mode
+- Harden sessions with private permissions, redaction, retention, and deletion
+- Add deterministic evaluations and Node 22/24 Linux/Windows release gates
+
 ## 2026-07-06
 - Add `/updates` and `/latest` commands backed by `CHANGELOG.md`
 - Expand thinking-stream palette: URLs get blue underline, CONSTANT_CASE gets orange, CLI flags get violet
@@ -14,7 +21,7 @@
 - Add semantic color highlighting to thinking stream (paths=green, tools=cyan, quotes=pink, numbers=amber)
 - Add custom animated spinner with on-brand phrases and brightness wave
 - Fix stale banner text (was "Venice.ai", now "opend-ai")
-- Add real provider switching: VENICE_BASE_URL, OPENAI_BASE_URL, venice_parameters conditional
+- Add provider switching through VENICE_BASE_URL with Venice parameters sent conditionally
 - Add auto-save-on-exit across all exit paths (SIGINT, readline close, natural exit)
 - Rename project from venice-ai to opend-ai; published to github.com/sudotsu/opend-ai
 - Fix confirm prompt bug where "yy" was accepted as yes (rl.question pattern)

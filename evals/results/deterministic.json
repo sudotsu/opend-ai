@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "profile": "deterministic-mock",
+  "generatedAt": "2026-07-13T01:16:01.616Z",
+  "node": "v24.14.0",
+  "passed": 20,
+  "total": 20,
+  "results": [
+    {
+      "id": "PROVIDER-01",
+      "status": "passed",
+      "durationMs": 1,
+      "evidence": "Exact Venice hostname is classified as Venice"
+    },
+    {
+      "id": "PROVIDER-02",
+      "status": "passed",
+      "durationMs": 0,
+      "evidence": "Loopback Ollama needs no API key"
+    },
+    {
+      "id": "PROVIDER-03",
+      "status": "passed",
+      "durationMs": 0,
+      "evidence": "Hostname spoof does not enable Venice extensions"
+    },
+    {
+      "id": "PROVIDER-04",
+      "status": "passed",
+      "durationMs": 0,
+      "evidence": "Non-HTTP provider URL is rejected"
+    },
+    {
+      "id": "TOOLS-01",
+      "status": "passed",
+      "durationMs": 0,
+      "evidence": "Empty edit search is rejected in bounded time"
+    },
+    {
+      "id": "TOOLS-02",
+      "status": "passed",
+      "durationMs": 0,
+      "evidence": "Workspace traversal is rejected"
+    },
+    {
+      "id": "TOOLS-03",
+      "status": "passed",
+      "durationMs": 0,
+      "evidence": "Protected secret reads are rejected"
+    },
+    {
+      "id": "TOOLS-04",
+      "status": "passed",
+      "durationMs": 1,
+      "evidence": "Symlink recursion is skipped"
+    },
+    {
+      "id": "TOOLS-05",
+      "status": "passed",
+      "durationMs": 0,
+      "evidence": "Normal write remains inside workspace"
+    },
+    {
+      "id": "SESSION-01",
+      "status": "passed",
+      "durationMs": 1,
+      "evidence": "Session directory is private"
+    },
+    {
+      "id": "SESSION-02",
+      "status": "passed",
+      "durationMs": 0,
+      "evidence": "Session file is private"
+    },
+    {
+      "id": "SESSION-03",
+      "status": "passed",
+      "durationMs": 0,
+      "evidence": "Common credentials are redacted"
+    },
+    {
+      "id": "APPROVAL-01",
+      "status": "passed",
+      "durationMs": 0,
+      "evidence": "Create preview shows proposed content"
+    },
+    {
+      "id": "APPROVAL-02",
+      "status": "passed",
+      "durationMs": 0,
+      "evidence": "Overwrite preview shows old and new content"
+    },
+    {
+      "id": "APPROVAL-03",
+      "status": "passed",
+      "durationMs": 0,
+      "evidence": "Binary proposal fails closed"
+    },
+    {
+      "id": "CONTEXT-01",
+      "status": "passed",
+      "durationMs": 0,
+      "evidence": "ASCII history has bounded estimate"
+    },
+    {
+      "id": "CONTEXT-02",
+      "status": "passed",
+      "durationMs": 0,
+      "evidence": "Non-English history is not undercounted as ASCII"
+    },
+    {
+      "id": "SAFETY-01",
+      "status": "passed",
+      "durationMs": 0,
+      "evidence": "Canonical destructive command produces warning"
+    },
+    {
+      "id": "RELIABILITY-01",
+      "status": "passed",
+      "durationMs": 1057,
+      "evidence": "Timed-out process tree is terminated"
+    },
+    {
+      "id": "SAFETY-02",
+      "status": "passed",
+      "durationMs": 2006,
+      "evidence": "Sandbox failure never falls back to host execution"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import fs from 'fs';
-import { resolvePath } from './tools.js';
+import os from 'os';
+import path from 'path';
 import type { Posture } from './prompts.js';
 
 // USD per 1,000,000 tokens. Default 0/0 = unknown → the CLI shows token counts
@@ -26,6 +27,7 @@ export interface AppConfig {
   model: string;
   posture: Posture;
   contextTokens: number;   // sliding-window budget (estimated tokens)
+  contextTokensConfigured: boolean; // distinguishes provider default from an explicit override
   maxRetries: number;      // API retry attempts on transient failure
   pricing: Pricing;
   bypassDefault: boolean;  // start in bypass permission mode
@@ -37,6 +39,8 @@ export interface AppConfig {
   commandTimeoutMs: number; // run_command hard timeout
   summarizeOnPrune: boolean; // condense evicted rounds into a rolling summary vs. dropping them
   maxSummaryTokens: number;  // max_tokens for the summarizer call (bounds summary growth)
+  sessionRetentionDays: number; // prune sessions older than this; 0 disables automatic retention
+  autoSave: boolean;
   veniceParams: VeniceParams;
 }
 
@@ -45,6 +49,7 @@ const DEFAULTS: Omit<AppConfig, 'apiKey' | 'temperature'> = {
   model: 'olafangensan-glm-4.7-flash-heretic',
   posture: 'coding',
   contextTokens: 96000,
+  contextTokensConfigured: false,
   maxRetries: 3,
   pricing: { in: 0, out: 0 },
   bypassDefault: false,
@@ -55,6 +60,8 @@ const DEFAULTS: Omit<AppConfig, 'apiKey' | 'temperature'> = {
   commandTimeoutMs: 30000,
   summarizeOnPrune: true,
   maxSummaryTokens: 1024,
+  sessionRetentionDays: 30,
+  autoSave: true,
   veniceParams: {
     disableThinking: false,
     stripThinkingResponse: false,
@@ -102,7 +109,17 @@ function sanitizeBool(value: any, fallback: boolean, label: string): boolean {
 }
 
 // Pure merge: DEFAULTS < homeCfg < cwdCfg < env. Exported (no fs) so precedence is
-// unit-testable without touching the real filesystem or $HOME.
+/**
+ * Combines configuration files and environment variables into a validated runtime configuration.
+ *
+ * Configuration precedence is defaults, home configuration, current-directory configuration, then
+ * environment variables. Invalid numeric and boolean overrides use safe defaults.
+ *
+ * @param homeCfg - Configuration loaded from the user's home directory
+ * @param cwdCfg - Configuration loaded from the current directory
+ * @param env - Environment variables that may override configuration values
+ * @returns The merged and validated application configuration
+ */
 export function mergeConfig(
   homeCfg: Record<string, any>,
   cwdCfg: Record<string, any>,
@@ -119,6 +136,7 @@ export function mergeConfig(
     baseUrl: env.VENICE_BASE_URL || fileCfg.baseUrl || DEFAULTS.baseUrl,
     model: env.VENICE_MODEL || fileCfg.model || DEFAULTS.model
   } as AppConfig;
+  merged.contextTokensConfigured = fileCfg.contextTokens !== undefined;
 
   const envPosture = env.VENICE_POSTURE as Posture | undefined;
   if (envPosture === 'coding' || envPosture === 'raw') merged.posture = envPosture;
@@ -167,17 +185,35 @@ export function mergeConfig(
     DEFAULTS.maxSummaryTokens,
     'maxSummaryTokens'
   );
+  merged.sessionRetentionDays = sanitizeIntLimit(
+    fileCfg.sessionRetentionDays,
+    0,
+    DEFAULTS.sessionRetentionDays,
+    'sessionRetentionDays'
+  );
+  merged.autoSave = sanitizeBool(fileCfg.autoSave, DEFAULTS.autoSave, 'autoSave');
 
   return merged;
 }
 
 // Prefer the current `.opendrc.json`; fall back to the legacy `.veniceagentrc.json`
 // name (from when the tool was "venice-agent") so existing config files keep working.
-function readRcPreferring(primary: string, legacy: string): Record<string, any> {
-  const primaryPath = resolvePath(primary);
+interface ConfigLoadPaths {
+  homeDir: string;
+  cwd: string;
+}
+
+function resolveConfigPath(input: string, paths: ConfigLoadPaths): string {
+  if (input === '~') return paths.homeDir;
+  if (input.startsWith('~/') || input.startsWith('~\\')) return path.join(paths.homeDir, input.slice(2));
+  return path.resolve(paths.cwd, input);
+}
+
+function readRcPreferring(primary: string, legacy: string, paths: ConfigLoadPaths): Record<string, any> {
+  const primaryPath = resolveConfigPath(primary, paths);
   return fs.existsSync(primaryPath)
     ? readJsonIfExists(primaryPath)
-    : readJsonIfExists(resolvePath(legacy));
+    : readJsonIfExists(resolveConfigPath(legacy, paths));
 }
 
 /**
@@ -186,8 +222,11 @@ function readRcPreferring(primary: string, legacy: string): Record<string, any> 
  * always wins so existing .env workflows keep working. The legacy `.veniceagentrc.json`
  * name is still read when the new one is absent.
  */
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const homeCfg = readRcPreferring('~/.opendrc.json', '~/.veniceagentrc.json');
-  const cwdCfg = readRcPreferring('.opendrc.json', '.veniceagentrc.json');
+export function loadConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  paths: ConfigLoadPaths = { homeDir: os.homedir(), cwd: process.cwd() }
+): AppConfig {
+  const homeCfg = readRcPreferring('~/.opendrc.json', '~/.veniceagentrc.json', paths);
+  const cwdCfg = readRcPreferring('.opendrc.json', '.veniceagentrc.json', paths);
   return mergeConfig(homeCfg, cwdCfg, env);
 }

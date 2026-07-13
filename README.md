@@ -4,7 +4,7 @@
   or influences the model's behavior.
 -->
 
-![opend-ai banner](assets/opend-ai-animated-banner-smooth.gif)
+![opend-ai banner](assets/opend-ai-banner.svg)
 
 # opend-ai
 
@@ -12,10 +12,10 @@
 write these docs, so if a line reads like a brochure, that's why. Open an issue and
 I'll plain it up.*
 
-An uncensored CLI coding agent. It's close to Claude Code in shape, but pointed at a
-model that doesn't refuse things and doesn't talk down to you. It streams the model's
-reasoning while it works, reads and writes files, runs shell commands, and otherwise
-stays out of the way.
+An uncensored, inspectable CLI coding agent. It streams the configured model's reasoning
+while it works, previews file changes before approval, restricts tool access to the
+selected workspace, and runs commands inside a network-off Bubblewrap boundary on
+Linux/WSL.
 
 The uncensored part is the whole reason it exists. It ships pointed at
 [Venice.ai](https://venice.ai)'s private models with Venice's own system prompt turned
@@ -25,9 +25,14 @@ Strip the uncensored part out and this is just another Claude Code clone. I want
 uncensored model that could actually do the work, not only talk about it, and this one
 can.
 
-You can move it whenever you want: any Venice model via `VENICE_MODEL`, or any
-OpenAI-compatible endpoint via `VENICE_BASE_URL`. The most uncensored setup of all is a
-local abliterated model in Ollama, where no API and no provider are involved at all.
+You can change the configured model and endpoint with `VENICE_MODEL` and
+`VENICE_BASE_URL`. Venice, local Ollama, and generic OpenAI-compatible endpoints use
+separate request profiles. Live Venice/Ollama verification is still pending; generic
+endpoints are experimental until they pass the versioned harness.
+
+The primary job, measurable outcome, secondary security-lab direction, and explicit
+non-goals are recorded in [Product direction](docs/product-direction.md). opend is not
+trying to win an IDE/GUI feature race or claim support for untested provider catalogs.
 
 ```text
 ❯ refactor the config loader to read from env first, then the yaml file
@@ -93,6 +98,9 @@ template, reasoned out from "I have no native memory but I have a filesystem." I
 told it the format, which files to make, or that it could write to my home directory. It
 worked that out on its own, and the next session really does come back with one command.
 
+> This is a historical capture from before the workspace boundary. Current releases
+> reject `~/…` paths unless that directory is the explicitly selected workspace.
+
 For what it's worth, the content is as uncensored as the rest of it. I've used it for
 hands-on security research (pentest practice against local Metasploitable VMs and the
 like) with no refusals. I'm only putting captured transcripts in this README though, so
@@ -129,14 +137,12 @@ and this loose. If you want a different one, set `VENICE_BASE_URL` and `VENICE_M
   answer, so you see why it did something, not just what.
 - It actually touches your machine: reads, writes, and edits real files, runs real
   shell commands. It does the work instead of describing it.
-- Two permission modes with a hard floor under both. Ask mode confirms every
-  destructive action. Bypass mode stops the endless prompting, but a denylist of
-  catastrophic commands (`rm -rf /`, `mkfs`, `dd of=/dev/…`, fork bombs, `format C:`)
-  always stops to ask anyway, so one bad guess can't wipe your disk.
-- Provider-portable. Swap `VENICE_MODEL` for another Venice model, or `VENICE_BASE_URL`
-  for any OpenAI-compatible host, including a local Ollama abliterated model for a fully
-  offline setup. The Venice-only request field is only sent to Venice, so other
-  providers don't choke on it.
+- Two permission modes plus an independent technical boundary. Ask mode confirms every
+  destructive action. Bypass reduces prompts, while workspace, process, and network
+  policy still apply. Regex warnings are defense in depth, not a security boundary.
+- Provider profiles. Venice, loopback Ollama, and generic OpenAI-compatible endpoints
+  receive different authentication and request behavior; only tested profiles should
+  be described as supported.
 - Small enough to read in one sitting. A handful of single-purpose modules. Fork it,
   gut it, do whatever.
 - Auto-saves on exit. If there's history, it writes to `~/.opend/sessions/` when
@@ -161,7 +167,9 @@ and this loose. If you want a different one, set `VENICE_BASE_URL` and `VENICE_M
 
 ## Install
 
-Requires **Node 18+**.
+Requires **Node 22 or 24**. The repository CI matrix targets both versions on Linux and native Windows; secure
+command execution currently requires Linux/WSL Bubblewrap, while native Windows fails
+closed unless `--profile unsafe-host` is explicitly selected.
 
 ```bash
 git clone https://github.com/sudotsu/opend-ai && cd opend-ai
@@ -225,12 +233,12 @@ VENICE_BASE_URL=http://localhost:11434/v1 VENICE_MODEL=huihui_ai/deepseek-r1-abl
 VENICE_BASE_URL=https://api.together.xyz/v1 VENICE_MODEL=<model-id> opend
 ```
 
-Venice is the default because it has strong uncensored models ready to go with no
-self-hosting. The Venice-only request field is only sent when the base URL is Venice, so
-any OpenAI-compatible endpoint works cleanly.
+Venice is the default because it provides uncensored models without self-hosting. The
+Venice-only request field is sent only to an exact Venice hostname. Other endpoints use
+a conservative profile and remain unverified until the live harness passes.
 
-> **Honest disclaimer:** I built and use this on Venice, so that's the default and what
-> it's tested against. The base-URL switch is wired correctly (it's in the code, and the
+> **Honest disclaimer:** I built and personally use this on Venice, but the current
+> version's live provider harness has not yet been rerun. The base-URL switch is wired correctly (it's in the code, and the
 > Venice-only params are gated behind it), and I wanted the option there, but I haven't
 > personally run a real workload through Ollama or another provider. I just don't think
 > confirming "one turn came back" is enough to claim "Ollama works," so I'd rather tell
@@ -241,7 +249,7 @@ any OpenAI-compatible endpoint works cleanly.
 
 Copy `.opendrc.example.json` to `~/.opendrc.json` (global) or
 `./.opendrc.json` (per-project) to set the model, posture, context budget,
-retries, pricing, default permission mode, and extra catastrophic-command patterns.
+retries, pricing, default permission mode, and extra warning patterns.
 
 ---
 
@@ -255,6 +263,11 @@ retries, pricing, default permission mode, and extra catastrophic-command patter
 | `/save [name]` | Save conversation to `~/.opend/sessions/` |
 | `/load <name>` | Restore a saved conversation |
 | `/sessions` | List saved conversations |
+| `/delete-session <name>` | Delete a saved conversation |
+| `/diff` | Review Git changes and untracked paths |
+| `/checkpoint` | Snapshot the workspace for recovery |
+| `/checkpoints` | List recovery snapshots |
+| `/undo <id>` | Explicitly restore a checkpoint |
 | `/usage` | Show token usage and cost |
 | `/updates` (or `/latest`) | List changes and fixes by date |
 | `/help` | List all commands |
@@ -264,16 +277,16 @@ retries, pricing, default permission mode, and extra catastrophic-command patter
 
 The prompt shows your mode: `❯` (accent) in ask mode, **`# ❯`** (red) in bypass — the `#` is the classic root-shell marker, a reminder that bypass auto-approves things that can bite.
 
-### Permission modes and the safety floor
+### Permission modes and the execution boundary
 
 **Ask mode (the default).** Every `write_file`, `edit_file`, and `run_command` stops and
-shows you exactly what it wants to do (the full shell command, or the file it's about to
-write or edit) and waits for a `y`. Nothing destructive happens without a keypress.
-Read-only actions (`read_file`, `list_dir`, `grep_search`) never prompt.
+shows the full shell command or a bounded create/overwrite/edit preview and waits for a
+`y`. Binary or excessively large file proposals fail closed. Read actions do not prompt,
+but they remain workspace-scoped and common secret-bearing paths are blocked.
 
 **Bypass mode (`/mode`).** Writes and commands auto-approve so you're not confirming
-every step, except a hard-coded denylist of catastrophic shell commands that always stops
-to confirm even here. What's on that floor (`src/denylist.ts`):
+every step, except a hard-coded denylist of catastrophic shell commands that still warns
+and asks. These patterns are not the boundary; Bubblewrap and the workspace policy are.
 
 - `rm -rf /`, `rm -rf ~`, `rm -rf $HOME` and friends (recursive force-delete of a root or home target)
 - `mkfs…` (formatting a filesystem)
@@ -282,7 +295,8 @@ to confirm even here. What's on that floor (`src/denylist.ts`):
 - Windows `format C:` and `del … /s|/q|/f`
 - `shutdown` / `reboot` / `halt` / `poweroff`
 
-So a small model can't wipe your disk or home directory on one bad guess, even in bypass.
+Novel shell phrasing can evade regex matching, which is why the sandbox—not this list—is
+responsible for containing effects.
 
 **The honest limits:**
 
@@ -294,8 +308,10 @@ So a small model can't wipe your disk or home directory on one bad guess, even i
 - Add your own always-confirm patterns via `extraDenylist` in `.opendrc.json`
   (regex strings).
 
-If you're working on anything you can't afford to lose, stay in ask mode. Use bypass
-deliberately, ideally in a directory or VM where a mistake is recoverable.
+The default `sandbox` profile requires Bubblewrap and never falls back to host execution.
+Commands have no network unless `--allow-network` is selected. The expert-only
+`--profile unsafe-host` option is explicit per invocation and displays a persistent
+warning. See [the security model](docs/security.md).
 
 ### Tools the agent has
 
@@ -306,14 +322,14 @@ deliberately, ideally in a directory or VM where a mistake is recoverable.
 
 ## Architecture
 
-- **`src/tools.ts`**: the six tool implementations
+- **`src/tools.ts`**: workspace path policy, sandboxed command runner, and six tool implementations
 - **`src/agent.ts`**: streaming loop, retry/backoff, cancellation, token accounting
 - **`src/prompts.ts`**: two system-prompt postures (`coding` / `raw`)
 - **`src/history.ts`**: pure sliding-window context trimming
 - **`src/think.ts`**: `<think>` tag splitting across streamed chunk boundaries
 - **`src/config.ts`**: merges `.opendrc.json` with env vars
-- **`src/session.ts`**: save/load/list conversations
-- **`src/denylist.ts`**: catastrophic-command patterns and the always-confirm check
+- **`src/session.ts`**: private/redacted save, load, retention, and deletion
+- **`src/denylist.ts`**: defense-in-depth command warning patterns
 - **`src/render.ts`**: thinking-line highlighter and tool-argument summarizer
 - **`src/updates.ts`**: parses `CHANGELOG.md` for the `/updates` command
 - **`src/index.ts`**: the REPL: input, live render, permission modes, slash commands
@@ -352,8 +368,6 @@ deliberately, ideally in a directory or VM where a mistake is recoverable.
 
 - **Auto-load project context.** If `.opend/context.md` exists in the cwd, inject it at
   startup and let the model maintain it during the session.
-- **Summarize-on-prune.** When old rounds drop out of the context window, compress them
-  into a short LLM-generated summary instead of losing them.
 - **Cross-session retrieval.** Write a memory entry on exit, retrieve the relevant ones
   on startup. RAG over your own history.
 - **More tools:** multi-edit / apply-patch, glob, optional web search.
