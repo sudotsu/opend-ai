@@ -31,6 +31,35 @@ describe('workspace tool policy', () => {
     expect(fs.readFileSync(path.join(dir, 'nested/a.txt'), 'utf-8')).toBe('ok');
   });
 
+  it('treats replacement tokens literally and protects repository credentials', () => {
+    const policy = createToolPolicy({ workspaceRoot: dir });
+    fs.writeFileSync(path.join(dir, 'a.txt'), 'before');
+    editFile('a.txt', 'before', "$& $$ $` $'", policy);
+    expect(fs.readFileSync(path.join(dir, 'a.txt'), 'utf-8')).toBe("$& $$ $` $'");
+    fs.mkdirSync(path.join(dir, '.git'));
+    fs.writeFileSync(path.join(dir, '.git', 'config'), 'secret');
+    fs.writeFileSync(path.join(dir, '.netrc'), 'secret');
+    expect(() => readFile('.git/config', undefined, undefined, policy)).toThrow(/Protected path/);
+    expect(() => readFile('.netrc', undefined, undefined, policy)).toThrow(/Protected path/);
+  });
+
+  it('rejects oversized reads and risky regexes before matching', () => {
+    const policy = createToolPolicy({ workspaceRoot: dir });
+    fs.writeFileSync(path.join(dir, 'large.txt'), Buffer.alloc(1_000_001));
+    expect(() => readFile('large.txt', undefined, undefined, policy)).toThrow(/read limit/);
+    expect(() => grepSearch('(a+)+$', '.', policy)).toThrow(/nested quantifiers/);
+  });
+
+  it('terminates command trees when cancelled', async () => {
+    if (process.platform === 'win32') return;
+    const policy = createToolPolicy({ workspaceRoot: dir, executionProfile: 'unsafe-host', timeoutMs: 30_000 });
+    const controller = new AbortController();
+    const resultPromise = runCommand('sleep 30', policy, controller.signal);
+    setTimeout(() => controller.abort(), 25);
+    await expect(resultPromise).resolves.toContain('command cancelled');
+    await expect(runCommand('echo no', policy, AbortSignal.abort())).resolves.toContain('cancelled before launch');
+  });
+
   it('kills the full unsafe-host process group on timeout', async () => {
     if (process.platform === 'win32') return;
     const policy = createToolPolicy({ workspaceRoot: dir, executionProfile: 'unsafe-host', timeoutMs: 1000 });
@@ -45,7 +74,8 @@ describe('workspace tool policy', () => {
     const marker = path.join(os.tmpdir(), `opend-host-marker-${process.pid}`);
     fs.rmSync(marker, { force: true });
     const policy = createToolPolicy({ workspaceRoot: dir, executionProfile: 'sandbox', timeoutMs: 2000 });
-    await runCommand(`printf escaped > ${JSON.stringify(marker)}`, policy);
+    const result = await runCommand(`printf escaped > ${JSON.stringify(marker)}`, policy);
+    expect(result).toMatch(/ERROR:.*Bubblewrap|ERROR:.*bwrap|Refusing host execution/i);
     expect(fs.existsSync(marker)).toBe(false);
   });
 });

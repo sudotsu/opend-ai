@@ -8,9 +8,10 @@ import { spawn } from 'node:child_process';
  * Runs the built CLI with the specified arguments and environment variables.
  * @param {string[]} args - Arguments passed to the CLI.
  * @param {Object} [env={}] - Environment variable overrides for the child process.
+ * @param {number} [timeoutMs=15000] - Maximum runtime before the child is terminated.
  * @return {Promise<{code: number|null, stdout: string, stderr: string}>} The process exit code and captured standard output and error.
  */
-function run(args, env = {}) {
+function run(args, env = {}, timeoutMs = 15_000) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, ['dist/index.js', ...args], {
       cwd: process.cwd(),
@@ -19,9 +20,21 @@ function run(args, env = {}) {
     });
     let stdout = '';
     let stderr = '';
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      finish({ code: null, stdout, stderr: `${stderr}${stderr ? '\n' : ''}CLI timed out after ${timeoutMs}ms` });
+    }, timeoutMs);
     child.stdout.on('data', (chunk) => { stdout += chunk; });
     child.stderr.on('data', (chunk) => { stderr += chunk; });
-    child.on('close', (code) => resolve({ code, stdout, stderr }));
+    child.on('error', (error) => finish({ code: null, stdout, stderr: `${stderr}${stderr ? '\n' : ''}Failed to spawn CLI: ${error.message}` }));
+    child.on('close', (code) => finish({ code, stdout, stderr }));
   });
 }
 

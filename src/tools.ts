@@ -98,9 +98,9 @@ function relativeForPolicy(absolutePath: string, policy: ToolPolicy): string {
 function isProtected(relativePath: string): boolean {
   const parts = relativePath.toLowerCase().split('/');
   const name = parts.at(-1) ?? '';
-  if (parts.includes('.ssh') || parts.includes('.aws') || parts.includes('.gnupg')) return true;
+  if (parts.includes('.ssh') || parts.includes('.aws') || parts.includes('.gnupg') || parts.includes('.git')) return true;
   if (name === '.env' || (name.startsWith('.env.') && !/\.(example|sample|template)$/.test(name))) return true;
-  if (['.npmrc', '.pypirc', '.git-credentials', 'credentials'].includes(name)) return true;
+  if (['.npmrc', '.pypirc', '.git-credentials', '.netrc', 'credentials'].includes(name)) return true;
   return /\.(pem|key|p12|pfx)$/.test(name) || /^id_(rsa|dsa|ecdsa|ed25519)$/.test(name);
 }
 
@@ -131,6 +131,7 @@ export function readFile(filePath: string, startLine?: number, endLine?: number,
   if (!fs.existsSync(absolutePath)) throw new Error(`File not found: ${filePath}`);
   const stats = fs.lstatSync(absolutePath);
   if (!stats.isFile()) throw new Error(`Path is not a regular file: ${filePath}`);
+  if (stats.size > 1_000_000) throw new Error(`File exceeds the 1000000-byte read limit: ${filePath}`);
   const content = fs.readFileSync(absolutePath, 'utf-8');
   const MAX_CHARS = 20000;
   if (startLine === undefined && endLine === undefined && content.length > MAX_CHARS) {
@@ -187,7 +188,7 @@ export function editFile(filePath: string, oldString: string, newString: string,
   if (count > 1) return `Error: old_string is ambiguous (${count} matches found) — provide more surrounding context to make it unique.`;
   const matchIndex = content.indexOf(oldString);
   const lineNumber = content.substring(0, matchIndex).split('\n').length;
-  fs.writeFileSync(absolutePath, content.replace(oldString, newString), 'utf-8');
+  fs.writeFileSync(absolutePath, content.slice(0, matchIndex) + newString + content.slice(matchIndex + oldString.length), 'utf-8');
   return `Successfully edited ${relative} at line ${lineNumber}`;
 }
 
@@ -313,6 +314,7 @@ function runtimeMountArgs(): string[] {
  * @returns The command execution environment
  */
 function commandEnvironment(policy: ToolPolicy): NodeJS.ProcessEnv {
+  fs.mkdirSync('/tmp/opend-home', { recursive: true, mode: 0o700 });
   const env: NodeJS.ProcessEnv = {
     PATH: `${path.join(runtimePrefix(), 'bin')}:/usr/local/bin:/usr/bin:/bin`,
     LANG: process.env.LANG || 'C.UTF-8',
@@ -349,7 +351,7 @@ function sandboxCommand(command: string, policy: ToolPolicy): { executable: stri
     ...runtimeMountArgs(),
     '--bind', root, root,
     '--chdir', root,
-    '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp',
+    '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--dir', '/tmp/opend-home',
     ...(policy.allowNetwork ? [
       '--dir', '/etc', '--ro-bind-try', '/etc/resolv.conf', '/etc/resolv.conf',
       '--ro-bind-try', '/etc/hosts', '/etc/hosts', '--ro-bind-try', '/etc/ssl', '/etc/ssl'
@@ -364,9 +366,11 @@ function sandboxCommand(command: string, policy: ToolPolicy): { executable: stri
  *
  * @param command - The shell command to execute
  * @param policy - Execution, workspace, timeout, network, and output settings
+ * @param signal - Optional cancellation signal that terminates the spawned process tree
  * @returns The command output, error details, timeout message, or a success message when no output is produced
  */
-export function runCommand(command: string, policy: ToolPolicy = createToolPolicy()): Promise<string> {
+export function runCommand(command: string, policy: ToolPolicy = createToolPolicy(), signal?: AbortSignal): Promise<string> {
+  if (signal?.aborted) return Promise.resolve('ERROR: command cancelled before launch.');
   let launch: { executable: string; args: string[] };
   try {
     launch = policy.executionProfile === 'sandbox'
@@ -398,18 +402,27 @@ export function runCommand(command: string, policy: ToolPolicy = createToolPolic
     };
     child.stdout.on('data', (chunk) => { stdout = append(stdout, chunk); });
     child.stderr.on('data', (chunk) => { stderr = append(stderr, chunk); });
+    let settled = false;
+    const finish = (result: string) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
+      resolve(result);
+    };
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; killTree(child); }, policy.timeoutMs);
-    child.on('error', (error) => { clearTimeout(timer); resolve(`ERROR: ${error.message}`); });
+    const abort = () => { killTree(child); finish('ERROR: command cancelled; process tree terminated.'); };
+    signal?.addEventListener('abort', abort, { once: true });
+    child.on('error', (error) => finish(`ERROR: ${error.message}`));
     child.on('close', (code, signal) => {
-      clearTimeout(timer);
-      if (timedOut) return resolve(`Command timed out after ${Math.round(policy.timeoutMs / 1000)} seconds; process tree terminated.`);
+      if (timedOut) return finish(`Command timed out after ${Math.round(policy.timeoutMs / 1000)} seconds; process tree terminated.`);
       let output = '';
       if (stdout) output += `STDOUT:\n${stdout}\n`;
       if (stderr) output += `STDERR:\n${stderr}\n`;
       if (truncated) output += `[Output truncated at ${max} characters.]\n`;
       if (code !== 0) output += `ERROR: command exited with code ${code}${signal ? ` (${signal})` : ''}.\n`;
-      resolve(output || 'Command executed successfully with no output.');
+      finish(output || 'Command executed successfully with no output.');
     });
   });
 }
@@ -426,6 +439,9 @@ export function grepSearch(pattern: string, searchPath: string, policy = createT
   const absolutePath = resolvePath(searchPath, policy);
   assertReadable(absolutePath, policy);
   if (!fs.existsSync(absolutePath)) throw new Error(`Path not found: ${searchPath}`);
+  if (/(?:\([^)]*[+*][^)]*\)|\\[dDsSwW](?:[+*]))\s*(?:[+*]|\{\d+(?:,\d*)?\})/.test(pattern)) {
+    throw new Error('Regex pattern rejected because nested quantifiers can cause excessive backtracking');
+  }
   const regex = new RegExp(pattern, 'i');
   const matches: { file: string; lineNumber: number; lineContent: string }[] = [];
   const visited = new Set<string>();

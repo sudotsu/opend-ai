@@ -69,16 +69,26 @@ export function createCheckpoint(workspaceRoot: string, baseDir?: string): strin
  * @throws If the checkpoint identifier is invalid, the storage location is inside the workspace, or the checkpoint does not exist.
  */
 export function restoreCheckpoint(id: string, workspaceRoot: string, baseDir?: string): void {
-  if (!/^[a-zA-Z0-9._-]+$/.test(id)) throw new Error('Invalid checkpoint id');
+  if (!/^[a-zA-Z0-9._-]+$/.test(id) || id === '.' || id === '..') throw new Error('Invalid checkpoint id');
   const root = checkpointRoot(baseDir);
   if (contains(workspaceRoot, root)) throw new Error('Checkpoint storage is inside the selected workspace; select a narrower workspace.');
   const source = path.join(root, id, 'workspace');
+  if (!contains(root, source)) throw new Error('Invalid checkpoint id');
   if (!fs.existsSync(source)) throw new Error(`Checkpoint not found: ${id}`);
-  for (const entry of fs.readdirSync(workspaceRoot)) {
-    if (EXCLUDES.has(entry)) continue;
-    fs.rmSync(path.join(workspaceRoot, entry), { recursive: true, force: true });
+  const resolvedSource = fs.realpathSync(source);
+  if (!contains(fs.realpathSync(root), resolvedSource)) throw new Error('Invalid checkpoint id');
+  const stageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-restore-'));
+  const staged = path.join(stageRoot, 'workspace');
+  try {
+    copyWorkspace(resolvedSource, staged);
+    for (const entry of fs.readdirSync(workspaceRoot)) {
+      if (EXCLUDES.has(entry)) continue;
+      fs.rmSync(path.join(workspaceRoot, entry), { recursive: true, force: true });
+    }
+    copyWorkspace(staged, workspaceRoot);
+  } finally {
+    fs.rmSync(stageRoot, { recursive: true, force: true });
   }
-  copyWorkspace(source, workspaceRoot);
 }
 
 /**

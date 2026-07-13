@@ -249,7 +249,7 @@ a conservative profile and remain unverified until the live harness passes.
 
 Copy `.opendrc.example.json` to `~/.opendrc.json` (global) or
 `./.opendrc.json` (per-project) to set the model, posture, context budget,
-retries, pricing, default permission mode, and extra catastrophic-command patterns.
+retries, pricing, default permission mode, and extra warning patterns.
 
 ---
 

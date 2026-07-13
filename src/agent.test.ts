@@ -333,6 +333,31 @@ describe('provider identity and recovery', () => {
     expect(notices.some((message) => message.includes('reducing budget'))).toBe(true);
   });
 
+  it('keeps reducing the provider context budget across repeated overflow responses', async () => {
+    const notices: string[] = [];
+    const agent = new VeniceAgent({ apiKey: 'x', contextTokens: 8000, summarizeOnPrune: false, onNotice: (message) => notices.push(message) });
+    let calls = 0;
+    (agent as any).runRound = async () => {
+      calls++;
+      if (calls < 4) throw Object.assign(new Error('maximum context length exceeded'), { status: 400 });
+      return { content: 'recovered', assembledToolCalls: [], aborted: false };
+    };
+    await expect(agent.chat('hello')).resolves.toBe('recovered');
+    expect(calls).toBe(4);
+    expect(notices).toHaveLength(3);
+  });
+
+  it('returns an empty result when overflow recovery is aborted', async () => {
+    const agent = new VeniceAgent({ apiKey: 'x', contextTokens: 8000, summarizeOnPrune: false });
+    let calls = 0;
+    (agent as any).runRound = async () => {
+      calls++;
+      if (calls === 1) throw Object.assign(new Error('maximum context length exceeded'), { status: 400 });
+      throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+    };
+    await expect(agent.chat('hello')).resolves.toBe('');
+  });
+
   it('returns invalid tool arguments to the model without performing I/O', async () => {
     const results: string[] = [];
     const agent = new VeniceAgent({ apiKey: 'x', onToolEnd: (_name, result) => results.push(result) });

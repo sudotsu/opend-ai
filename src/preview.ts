@@ -45,6 +45,9 @@ function lines(prefix: string, text: string, maxLines = 80): string {
 export function buildApprovalPreview(name: string, args: any, policy: ToolPolicy): ApprovalPreview {
   const target = resolvePath(args.path, policy);
   const exists = fs.existsSync(target);
+  if (exists && fs.statSync(target).size > MAX_PREVIEW_CHARS) {
+    return { safe: false, operation: name === 'edit_file' ? 'edit' : 'overwrite', text: 'Refusing approval: existing target is binary or too large for a bounded preview.' };
+  }
   const current = exists ? fs.readFileSync(target, 'utf-8') : '';
   if (current.length > MAX_PREVIEW_CHARS || binary(current)) {
     return { safe: false, operation: name === 'edit_file' ? 'edit' : 'overwrite', text: 'Refusing approval: existing target is binary or too large for a bounded preview.' };

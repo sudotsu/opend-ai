@@ -22,5 +22,7 @@ describe('approval previews', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-preview-')); dirs.push(dir);
     const policy = createToolPolicy({ workspaceRoot: dir });
     expect(buildApprovalPreview('write_file', { path: 'a', content: '\0binary' }, policy).safe).toBe(false);
+    fs.writeFileSync(path.join(dir, 'large'), 'x'.repeat(20_001));
+    expect(buildApprovalPreview('write_file', { path: 'large', content: 'small' }, policy).safe).toBe(false);
   });
 });

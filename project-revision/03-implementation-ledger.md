@@ -111,3 +111,19 @@ Approved, confirmed, retained (sequence 27). New policy, provider, preview, vali
 ## REL-001 — Existing retry, cancellation, history, and autosave controls are thoughtful
 
 Approved, confirmed, retained (sequence 28). Existing controls remain green; transient/non-retryable provider coverage and deterministic streamed mock-provider integration were added.
+
+## Draft PR inline-review revalidation — 2026-07-13
+
+All 20 requested follow-up findings were revalidated against the current branch before editing. All remained confirmed; none were stale, already satisfied, or skipped. Minimal fixes were applied to the existing finding scopes:
+
+- TECH-005/DOC-002: checkout credentials no longer persist, and CLI smoke children have bounded timeout/error settlement.
+- PROD-002/TECH-003: live cases have a configurable deadline and invalid base URLs no longer prevent failure-report writing.
+- TECH-004/REL-001: context overflow retries through successive budget reductions and remains abort-safe.
+- UX-005: checkpoint IDs cannot traverse storage, restore staging completes before live deletion, command errors stay inside the prompt loop, and undo invalidates the lazy recovery point.
+- UX-006/SEC-001: workspaces are validated before policy creation and catastrophic exec-mode commands cannot be auto-approved.
+- UX-001: existing targets are size-checked before preview reads.
+- SEC-004: deletion now includes the legacy-session fallback used by loading.
+- TECH-001/SEC-003/REL-002: edits use literal replacement text; reads size-check before loading; `.git` and `.netrc` are protected; risky nested-quantifier regexes are rejected; sandbox HOME exists; and command cancellation terminates the process tree with settle-once handling.
+- DOC-001: README configuration terminology now consistently says “warning patterns.”
+
+Focused regression coverage was added for the affected tool, checkpoint, preview, and overflow paths. Live Venice/Ollama and positive Bubblewrap execution remain blocked exactly as previously recorded.

@@ -596,11 +596,21 @@ export class VeniceAgent {
       } catch (err: any) {
         if (this.isAbort(err)) return ''; // cancelled before any history commit
         if (this.isContextOverflow(err)) {
-          const previous = this.contextTokens;
-          this.contextTokens = Math.max(1024, Math.floor(this.contextTokens * 0.75));
-          this.onNotice?.(`provider rejected the context window; reducing budget from ${previous} to ${this.contextTokens} tokens and pruning again`);
-          await this.applyPruneAndSummarize(signal);
-          round = await this.runRound(signal);
+          while (true) {
+            const previous = this.contextTokens;
+            if (previous <= 1024) throw err;
+            this.contextTokens = Math.max(1024, Math.floor(previous * 0.75));
+            this.onNotice?.(`provider rejected the context window; reducing budget from ${previous} to ${this.contextTokens} tokens and pruning again`);
+            try {
+              await this.applyPruneAndSummarize(signal);
+              round = await this.runRound(signal);
+              break;
+            } catch (retryError: any) {
+              if (this.isAbort(retryError)) return '';
+              if (!this.isContextOverflow(retryError)) throw retryError;
+              err = retryError;
+            }
+          }
         } else {
           throw err;
         }
@@ -674,7 +684,7 @@ export class VeniceAgent {
               result = listDir(args.path, this.toolPolicy);
               break;
             case 'run_command':
-              result = await runCommand(args.command, this.toolPolicy);
+              result = await runCommand(args.command, this.toolPolicy, signal);
               break;
             case 'grep_search':
               result = grepSearch(args.pattern, args.path, this.toolPolicy);

@@ -101,6 +101,12 @@ if (cli.command === 'exec' && !cli.prompt) {
   console.error('opend exec requires a prompt.');
   process.exit(2);
 }
+try {
+  if (!fs.statSync(cli.workspace).isDirectory()) throw new Error('workspace is not a directory');
+} catch {
+  console.error(`opend: workspace does not exist or is not a directory: ${cli.workspace}`);
+  process.exit(2);
+}
 
 const HOME_ENV_PATH = path.join(os.homedir(), '.opend', '.env');
 // Legacy home file from when the tool was "venice-agent"; still read as a fallback.
@@ -335,7 +341,7 @@ const agent = new VeniceAgent({
 
     if (cli.command === 'exec') {
       if (previewText) process.stderr.write(`\n${operation.toUpperCase()} ${args.path}\n${previewText}\n`);
-      return cli.allowChanges && previewSafe;
+      return cli.allowChanges && previewSafe && !catastrophic;
     }
 
     // In bypass mode, wave through everything except catastrophic commands.
@@ -618,9 +624,13 @@ async function handleLine(line: string): Promise<void> {
   }
 
   if (lower === '/checkpoint') {
-    const id = createCheckpoint(toolPolicy.workspaceRoot);
-    automaticCheckpoint = id;
-    console.log(theme.accent(`\nCreated checkpoint ${id}.\n`));
+    try {
+      const id = createCheckpoint(toolPolicy.workspaceRoot);
+      automaticCheckpoint = id;
+      console.log(theme.accent(`\nCreated checkpoint ${id}.\n`));
+    } catch (err: any) {
+      console.error(theme.danger(`\nCheckpoint failed: ${err.message}\n`));
+    }
     rl.prompt();
     return;
   }
@@ -634,8 +644,13 @@ async function handleLine(line: string): Promise<void> {
 
   if (lower.startsWith('/undo ')) {
     const id = input.slice('/undo'.length).trim();
-    restoreCheckpoint(id, toolPolicy.workspaceRoot);
-    console.log(theme.warn(`\nRestored checkpoint ${id}. Review /diff before continuing.\n`));
+    try {
+      restoreCheckpoint(id, toolPolicy.workspaceRoot);
+      automaticCheckpoint = null;
+      console.log(theme.warn(`\nRestored checkpoint ${id}. Review /diff before continuing.\n`));
+    } catch (err: any) {
+      console.error(theme.danger(`\nRestore failed: ${err.message}\n`));
+    }
     rl.prompt();
     return;
   }
@@ -671,8 +686,12 @@ async function handleLine(line: string): Promise<void> {
   }
 
   if (!automaticCheckpoint) {
-    automaticCheckpoint = createCheckpoint(toolPolicy.workspaceRoot);
-    console.log(theme.dim(`\nRecovery checkpoint → ${automaticCheckpoint}`));
+    try {
+      automaticCheckpoint = createCheckpoint(toolPolicy.workspaceRoot);
+      console.log(theme.dim(`\nRecovery checkpoint → ${automaticCheckpoint}`));
+    } catch (err: any) {
+      console.error(theme.warn(`\nWarning: recovery checkpoint unavailable (${err.message}); continuing without one.`));
+    }
   }
 
   render = new RenderSession();

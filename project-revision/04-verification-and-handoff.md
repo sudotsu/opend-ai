@@ -57,3 +57,20 @@ python3 /root/.codex/skills/remote-skills/skill-6a53f6795ea08191bbfb8b4cf4f8647a
 Result: `Project revision validation passed.`
 
 The implementation endpoint is committed remotely, branch `agent/implement-validated-teardown` is published, and draft PR #8 is open. No merge, deployment, migration, release/publication, credential-backed live run, or production change is authorized or claimed.
+
+## Draft PR review follow-up — 2026-07-13
+
+The 20 supplied inline/outside-diff/nitpick findings were revalidated against the current clean local branch baseline. All 20 were still valid and were fixed minimally; no requested finding was skipped. The follow-up working tree changes are not committed or published by this pass.
+
+Follow-up validation:
+
+- `npm test`: 16 files, 165 tests passed.
+- `npm run test:cli`: passed, including compiled help/version/usage/mock-provider/unsafe-warning flows.
+- `npm run eval`: 20/20 deterministic cases passed.
+- `npm run check:release`: passed.
+- `npm audit --omit=dev --json`: zero production vulnerabilities.
+- `npm pack --dry-run --json --cache /tmp/opend-ai-npm-cache`: passed; 27 entries, 47,333-byte archive, 148,218 bytes unpacked.
+- `git diff --check`: passed.
+- Original teardown validator: passed.
+
+The prior external verification limits are unchanged: live Venice/Ollama, positive Bubblewrap execution on a normal WSL host, and the remaining REL-002 platform/live-provider matrix are not claimed by this follow-up.

@@ -164,7 +164,10 @@ export function listSessions(dir: string = DEFAULT_SESSION_DIR): SessionSummary[
  * @returns `true` if the session was deleted, `false` if it was not found
  */
 export function deleteSession(name: string, dir: string = DEFAULT_SESSION_DIR): boolean {
-  const target = sessionPath(dir, name);
+  let target = sessionPath(dir, name);
+  if (!fs.existsSync(target) && dir === DEFAULT_SESSION_DIR) {
+    target = sessionPath(LEGACY_SESSION_DIR, name);
+  }
   if (!fs.existsSync(target)) return false;
   fs.rmSync(target);
   return true;
