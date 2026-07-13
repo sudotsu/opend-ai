@@ -1,0 +1,205 @@
+{
+  "schema_version": 1,
+  "project": "sudotsu/opend-ai",
+  "teardown_path": "attached validated project-teardown",
+  "teardown_audited_revision": "359ae1241fddb0377cd604447d8fdd75e3109db9",
+  "implementation_start_revision": "359ae1241fddb0377cd604447d8fdd75e3109db9",
+  "implementation_end_revision": "29dba107f73342c3e8ed42b3244d78eefa862e18",
+  "revision_status": "partial",
+  "generated_at": "2026-07-13T02:19:00Z",
+  "existing_work_reconciled": true,
+  "findings": [
+    {
+      "id": "PROD-001", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 1,
+      "reason": "The owner selected coding-agent primary and authorized-security-lab secondary.",
+      "files_changed": ["docs/product-direction.md", "README.md"],
+      "acceptance_results": [{"criterion": "A primary user/job, secondary mode, three non-goals, and benchmark set are approved.", "status": "passed", "evidence": "Owner decision 1A and docs/product-direction.md record all four elements."}],
+      "verification": ["Manual decision/document reconciliation"], "notes": ["Uncensored model behavior is non-negotiable; isolation governs tools only."]
+    },
+    {
+      "id": "PROD-002", "approval": "approved", "revalidation": "confirmed", "disposition": "blocked", "sequence": 2,
+      "reason": "The harness is implemented, but required live Venice/Ollama results need owner-run credentials/endpoints.",
+      "files_changed": ["evals/cases.json", "evals/live-cases.json", "evals/results/deterministic.json", "evals/results/live-blocked.json", "scripts/run-deterministic-evals.mjs", "scripts/run-live-evals.mjs", "package.json"],
+      "acceptance_results": [{"criterion": "At least 20 tasks run with stored results for the default and every claimed provider profile.", "status": "blocked", "evidence": "20/20 deterministic cases passed; live Venice/Ollama result remains explicitly blocked."}],
+      "verification": ["npm run eval: 20/20 passed"], "notes": ["No credential was requested or stored."]
+    },
+    {
+      "id": "TECH-001", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 3,
+      "reason": "Empty edit searches are rejected before the former non-advancing loop.",
+      "files_changed": ["src/tools.ts", "src/tool-validation.ts", "src/tool-validation.test.ts", "src/tools.test.ts"],
+      "acceptance_results": [{"criterion": "Empty old_string returns a bounded error without mutation.", "status": "passed", "evidence": "Unit, agent integration, and deterministic eval checks pass."}],
+      "verification": ["npm test", "npm run eval"], "notes": ["Whitespace-only strings remain explicit valid exact-string searches."]
+    },
+    {
+      "id": "UX-001", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 4,
+      "reason": "Approvals now expose bounded proposed content and fail safely when preview is impossible.",
+      "files_changed": ["src/preview.ts", "src/preview.test.ts", "src/index.ts"],
+      "acceptance_results": [{"criterion": "Every write/edit approval shows target, operation, and proposed change; large/binary cases fail safely.", "status": "passed", "evidence": "Preview tests cover create, overwrite, edit, and binary denial."}],
+      "verification": ["npm test", "npm run eval"], "notes": []
+    },
+    {
+      "id": "SEC-001", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 5,
+      "reason": "Regex claims were corrected and an independent fail-closed boundary now contains effects.",
+      "files_changed": ["src/denylist.ts", "src/tools.ts", "README.md", "docs/security.md"],
+      "acceptance_results": [{"criterion": "No absolute blocklist claim remains and bypass cannot reach protected paths under the default profile.", "status": "passed", "evidence": "Release fact check passes; workspace escape and sandbox no-fallback tests pass."}],
+      "verification": ["npm run check:release", "npm test", "npm run eval"], "notes": ["Regexes remain defense-in-depth warnings."]
+    },
+    {
+      "id": "UX-002", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 6,
+      "reason": "Authentication is derived from the parsed provider profile.",
+      "files_changed": ["src/provider.ts", "src/provider.test.ts", "src/index.ts", "src/agent.ts"],
+      "acceptance_results": [{"criterion": "Fresh HOME can start documented Ollama without Venice credentials; Venice still requires a key.", "status": "passed", "evidence": "Isolated-HOME local CLI startup passed and provider tests retain Venice auth."}],
+      "verification": ["Local no-key CLI smoke", "npm test"], "notes": []
+    },
+    {
+      "id": "TECH-002", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 7,
+      "reason": "Prompt identity now uses configured model/provider values.",
+      "files_changed": ["src/prompts.ts", "src/agent.ts", "src/agent.test.ts"],
+      "acceptance_results": [{"criterion": "Local/third-party models receive no false Venice/GLM identity.", "status": "passed", "evidence": "Configured Ollama identity test passes and hardcoded production identity search is empty."}],
+      "verification": ["npm test", "Repository search"], "notes": []
+    },
+    {
+      "id": "SEC-002", "approval": "approved", "revalidation": "confirmed", "disposition": "blocked", "sequence": 8,
+      "reason": "The default policy and fail-closed behavior are implemented, but positive Bubblewrap execution remains unverified in this nested runner.",
+      "files_changed": ["src/tools.ts", "src/tools.test.ts", "src/index.ts", "docs/security.md", "README.md"],
+      "acceptance_results": [{"criterion": "Default cannot write outside workspace or access command network without policy transition.", "status": "blocked", "evidence": "Path-escape and no-host-fallback tests pass, but a positive Bubblewrap workload could not execute inside this already nested sandbox."}],
+      "verification": ["npm test", "npm run eval"], "notes": ["Positive nested Bubblewrap execution is unavailable in this runner; fail-closed behavior is verified."]
+    },
+    {
+      "id": "SEC-003", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 9,
+      "reason": "Read scope, protected paths, command environment, and provider disclosure are enforced.",
+      "files_changed": ["src/tools.ts", "src/tools.test.ts", "src/provider.ts", "src/index.ts", "docs/security.md"],
+      "acceptance_results": [{"criterion": "Default reads cannot escape workspace/access protected secrets and provider tier is visible.", "status": "passed", "evidence": "Escape/protected-read tests pass and CLI banner prints local/remote disclosure."}],
+      "verification": ["npm test", "CLI local smoke"], "notes": []
+    },
+    {
+      "id": "SEC-004", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 10,
+      "reason": "Session confidentiality, retention, redaction, and deletion controls were added.",
+      "files_changed": ["src/session.ts", "src/session.test.ts", "src/config.ts", "src/config.test.ts", "src/index.ts", "docs/security.md"],
+      "acceptance_results": [{"criterion": "Sessions are least-privilege, retention configurable, and deletion supported.", "status": "passed", "evidence": "0700/0600, redaction, retention, and delete tests pass on Linux."}],
+      "verification": ["npm test", "npm run eval"], "notes": ["Physical-media erasure is explicitly not claimed."]
+    },
+    {
+      "id": "TECH-006", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 11,
+      "reason": "Tool-call JSON is validated before approval and I/O.",
+      "files_changed": ["src/tool-validation.ts", "src/tool-validation.test.ts", "src/agent.ts", "src/agent.test.ts"],
+      "acceptance_results": [{"criterion": "Invalid arguments return structured bounded errors without I/O.", "status": "passed", "evidence": "Type/range/size/unknown-tool tests and agent invalid-edit integration pass."}],
+      "verification": ["npm test"], "notes": []
+    },
+    {
+      "id": "REL-002", "approval": "approved", "revalidation": "changed", "disposition": "blocked", "sequence": 12,
+      "reason": "Confirmed process-tree and symlink defects are fixed, but the original full specialized platform matrix is incomplete.",
+      "files_changed": ["src/tools.ts", "src/tools.test.ts", "evals/cases.json", "scripts/run-deterministic-evals.mjs"],
+      "acceptance_results": [{"criterion": "Process trees, symlink cycles, prompt injection, live SIGINT, and session permissions are tested on supported platforms.", "status": "blocked", "evidence": "Process tree, symlink, and Linux session permission tests pass; live SIGINT/prompt-injection and Windows remain unverified."}],
+      "verification": ["npm test", "npm run eval"], "notes": ["Both newly confirmed defects are implemented, not merely documented."]
+    },
+    {
+      "id": "TECH-005", "approval": "approved", "revalidation": "confirmed", "disposition": "blocked", "sequence": 13,
+      "reason": "Release gates are defined but have not yet executed on GitHub.",
+      "files_changed": [".github/workflows/ci.yml", "scripts/cli-smoke.mjs", "scripts/check-release-facts.mjs", "package.json"],
+      "acceptance_results": [{"criterion": "Required checks run on every PR/release with retained results.", "status": "blocked", "evidence": "Workflow targets Node 22/24 Linux/Windows and uploads eval results; no push/PR was authorized to execute it."}],
+      "verification": ["Local equivalent checks pass on Node 24"], "notes": []
+    },
+    {
+      "id": "TECH-003", "approval": "approved", "revalidation": "confirmed", "disposition": "blocked", "sequence": 14,
+      "reason": "Profiles and harness exist, but advertised live profile verification is deliberately blocked.",
+      "files_changed": ["src/provider.ts", "src/provider.test.ts", "src/agent.ts", "src/mock-provider.integration.test.ts", "docs/provider-compatibility.md", "README.md"],
+      "acceptance_results": [{"criterion": "Every claimed provider passes tool loop, usage, cancel, retry, summary, and auth tests.", "status": "blocked", "evidence": "Deterministic mock tool loop passes; Venice/Ollama live matrix awaits owner-run credentials/endpoints."}],
+      "verification": ["npm test", "npm run eval"], "notes": ["Generic endpoints are experimental, not claimed supported."]
+    },
+    {
+      "id": "TECH-004", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 15,
+      "reason": "Context metadata, conservative estimation, and overflow recovery are provider-aware.",
+      "files_changed": ["src/provider.ts", "src/config.ts", "src/agent.ts", "src/history.ts", "src/history.test.ts", "src/agent.test.ts"],
+      "acceptance_results": [{"criterion": "Code/non-English/tool histories and provider overflow recovery have boundary coverage.", "status": "passed", "evidence": "UTF-8 and tool-round history tests pass; simulated provider 400 reduces budget and retries successfully."}],
+      "verification": ["npm test", "npm run eval"], "notes": []
+    },
+    {
+      "id": "DOC-002", "approval": "approved", "revalidation": "confirmed", "disposition": "blocked", "sequence": 16,
+      "reason": "Metadata is aligned, but the new Node 22/24 Windows/Linux matrix has not run externally.",
+      "files_changed": ["package.json", "package-lock.json", "README.md", ".github/workflows/ci.yml"],
+      "acceptance_results": [{"criterion": "Metadata and README match a passing Node 22/24 CI matrix.", "status": "blocked", "evidence": "Node 24 local checks pass; Node 22/Windows await first CI run."}],
+      "verification": ["Node 24 build/test/package pass"], "notes": ["A local Node 22 runtime could not be obtained in this runner."]
+    },
+    {
+      "id": "UX-003", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 17,
+      "reason": "Examples now use current filenames with legacy names only as migration fallbacks.",
+      "files_changed": [".env.example", ".opendrc.example.json", "scripts/check-release-facts.mjs"],
+      "acceptance_results": [{"criterion": "Legacy names appear only in fallback/migration contexts.", "status": "passed", "evidence": "Repository search and release fact check pass."}],
+      "verification": ["npm run check:release", "Repository search"], "notes": []
+    },
+    {
+      "id": "UX-004", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 18,
+      "reason": "The hero was replaced by a deterministic nonvolatile asset while preserving the original GIF.",
+      "files_changed": ["assets/opend-ai-banner.svg", "README.md", "package.json"],
+      "acceptance_results": [{"criterion": "Hero facts match current behavior and privacy paths.", "status": "passed", "evidence": "SVG contains no version/model/context/CWD claim and distinguishes model output from tool authority/network."}],
+      "verification": ["Manual SVG/source inspection", "npm pack --dry-run"], "notes": ["Existing animated GIF bytes remain untouched."]
+    },
+    {
+      "id": "DOC-001", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 19,
+      "reason": "README, changelog, examples, banner, and package facts were reconciled and guarded.",
+      "files_changed": ["README.md", "CHANGELOG.md", ".env.example", ".opendrc.example.json", "assets/opend-ai-banner.svg", "scripts/check-release-facts.mjs"],
+      "acceptance_results": [{"criterion": "Contradictions are resolved and machine-readable facts are checked.", "status": "passed", "evidence": "Release fact check passes and dry-run package includes current docs/banner."}],
+      "verification": ["npm run check:release", "npm pack --dry-run"], "notes": []
+    },
+    {
+      "id": "UX-005", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 20,
+      "reason": "Scope, full Git change review, and explicit snapshot recovery are available.",
+      "files_changed": ["src/index.ts", "src/checkpoint.ts", "src/checkpoint.test.ts", "README.md"],
+      "acceptance_results": [{"criterion": "Users can see scope, review all changes, and restore pre-task state in supported repositories.", "status": "passed", "evidence": "Banner/diff handlers implemented; checkpoint restore test preserves Git metadata and removes post-checkpoint files."}],
+      "verification": ["npm test", "CLI smoke"], "notes": []
+    },
+    {
+      "id": "UX-006", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 21,
+      "reason": "Standard flags and non-interactive execution now have credential-independent and deterministic behavior.",
+      "files_changed": ["src/index.ts", "scripts/cli-smoke.mjs", "package.json", "README.md"],
+      "acceptance_results": [{"criterion": "Help/version work without credentials; exec has deterministic exit codes and permission policy.", "status": "passed", "evidence": "CLI smoke verifies help/version exit 0, missing prompt exit 2, mock exec exit 0, and unsafe warning."}],
+      "verification": ["npm run test:cli"], "notes": []
+    },
+    {
+      "id": "PROD-003", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 22,
+      "reason": "The measurable differentiation and explicit non-goals are now landing-page content.",
+      "files_changed": ["README.md", "docs/product-direction.md"],
+      "acceptance_results": [{"criterion": "Landing copy states a measurable unique outcome and what opend will not match.", "status": "passed", "evidence": "README links and summarizes product-direction outcome and non-goals."}],
+      "verification": ["Manual documentation inspection"], "notes": []
+    },
+    {
+      "id": "SEC-006", "approval": "deferred", "revalidation": "confirmed", "disposition": "deferred", "sequence": 23,
+      "reason": "Owner explicitly deferred security engagement semantics until prerequisites complete.",
+      "files_changed": [], "acceptance_results": [], "verification": ["Owner decision 3A plus adjustment"], "notes": ["No security-lab implementation started."]
+    },
+    {
+      "id": "PROD-004", "approval": "deferred", "revalidation": "confirmed", "disposition": "deferred", "sequence": 24,
+      "reason": "Owner explicitly deferred the lab prototype until PROD-002, SEC-002, and SEC-006 prerequisites complete.",
+      "files_changed": [], "acceptance_results": [], "verification": ["Owner decision 3A plus adjustment"], "notes": ["Opportunity remains documented as secondary."]
+    },
+    {
+      "id": "PROD-005", "approval": "approved", "revalidation": "confirmed", "disposition": "retained", "sequence": 25,
+      "reason": "The candid voice and explicit limitations were preserved and strengthened.",
+      "files_changed": [],
+      "acceptance_results": [{"criterion": "Limitations remain explicit and tested claims are distinguished.", "status": "passed", "evidence": "README labels live checks blocked, generic profiles experimental, and deletion/sandbox limits."}],
+      "verification": ["Manual README review"], "notes": []
+    },
+    {
+      "id": "UX-007", "approval": "approved", "revalidation": "confirmed", "disposition": "retained", "sequence": 26,
+      "reason": "Existing visual hierarchy and textual state labels remain intact.",
+      "files_changed": [],
+      "acceptance_results": [{"criterion": "Existing terminal hierarchy and state labels do not regress.", "status": "passed", "evidence": "Render tests pass; local CLI banner/help smoke retains textual labels."}],
+      "verification": ["npm test", "CLI smoke"], "notes": []
+    },
+    {
+      "id": "TECH-008", "approval": "approved", "revalidation": "confirmed", "disposition": "retained", "sequence": 27,
+      "reason": "New concerns use focused modules without duplicating provider, path, or validation policy.",
+      "files_changed": [],
+      "acceptance_results": [{"criterion": "Module focus remains and policy is not duplicated.", "status": "passed", "evidence": "Provider, validation, preview, checkpoint, session, and tool policy are separated; 159 tests pass."}],
+      "verification": ["Architecture review", "npm test"], "notes": []
+    },
+    {
+      "id": "REL-001", "approval": "approved", "revalidation": "confirmed", "disposition": "retained", "sequence": 28,
+      "reason": "Retry, cancellation, history, and autosave behavior remains while integration coverage expanded.",
+      "files_changed": [],
+      "acceptance_results": [{"criterion": "Existing failure-path tests remain green and equivalent end-to-end cases are added.", "status": "passed", "evidence": "159 tests pass, including retry classification and deterministic streamed provider tool loop."}],
+      "verification": ["npm test", "npm run test:cli"], "notes": []
+    }
+  ]
+}
