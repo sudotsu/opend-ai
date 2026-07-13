@@ -17,6 +17,7 @@ The complete approved repository implementation is committed on `agent/implement
 - `npm pack --dry-run --json`: passed; 27 intended package entries, 46,650-byte archive, 144,909 bytes unpacked.
 - `git diff --check`: passed.
 - Revision validator: passed.
+- GitHub Actions workflow run `29217420494`: Node 22/24 on Ubuntu/Windows all passed, including install, 159 tests, build, CLI smoke, release facts, and package dry-run; Ubuntu Node 24 also passed deterministic evals.
 
 ## End-to-end and regression coverage
 
@@ -25,7 +26,6 @@ The deterministic streamed OpenAI-compatible integration performs a real SDK req
 ## Blocked or unverified evidence
 
 - Live Venice and Ollama harness results: blocked until the owner runs `npm run eval:live -- --profile <venice|ollama>` locally with normal environment credentials/endpoints.
-- GitHub Node 22/24 Linux/Windows matrix: workflow added but not executed because no commit/push/PR was authorized. Node 24 passed locally; attempts to obtain a separate Node 22 runtime in this runner produced no usable runtime.
 - SEC-002 / positive Bubblewrap workload: blocked. This environment is already nested in an outer Bubblewrap sandbox, so the inner functional preflight fails closed. Missing/unusable Bubblewrap behavior and lack of host fallback are verified; a normal WSL host must run the positive smoke before SEC-002 can be marked implemented.
 - REL-002 remainder: live provider SIGINT, prompt-injection fixtures, and Windows-specific runtime/session behavior remain unverified.
 
@@ -56,4 +56,4 @@ python3 /root/.codex/skills/remote-skills/skill-6a53f6795ea08191bbfb8b4cf4f8647a
 
 Result: `Project revision validation passed.`
 
-The implementation was committed locally before this artifact so its immutable endpoint could be recorded. Branch push and a draft pull request are authorized after this artifact validates. No merge, deployment, migration, release/publication, credential-backed live run, or production change is authorized or claimed.
+The implementation endpoint is committed remotely, branch `agent/implement-validated-teardown` is published, and draft PR #8 is open. No merge, deployment, migration, release/publication, credential-backed live run, or production change is authorized or claimed.

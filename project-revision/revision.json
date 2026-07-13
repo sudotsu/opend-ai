@@ -6,7 +6,7 @@
   "implementation_start_revision": "359ae1241fddb0377cd604447d8fdd75e3109db9",
   "implementation_end_revision": "29dba107f73342c3e8ed42b3244d78eefa862e18",
   "revision_status": "partial",
-  "generated_at": "2026-07-13T02:19:00Z",
+  "generated_at": "2026-07-13T02:30:00Z",
   "existing_work_reconciled": true,
   "findings": [
     {
@@ -94,11 +94,11 @@
       "verification": ["npm test", "npm run eval"], "notes": ["Both newly confirmed defects are implemented, not merely documented."]
     },
     {
-      "id": "TECH-005", "approval": "approved", "revalidation": "confirmed", "disposition": "blocked", "sequence": 13,
-      "reason": "Release gates are defined but have not yet executed on GitHub.",
+      "id": "TECH-005", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 13,
+      "reason": "Repository-native release gates are defined and all four Node/OS jobs passed on draft PR #8.",
       "files_changed": [".github/workflows/ci.yml", "scripts/cli-smoke.mjs", "scripts/check-release-facts.mjs", "package.json"],
-      "acceptance_results": [{"criterion": "Required checks run on every PR/release with retained results.", "status": "blocked", "evidence": "Workflow targets Node 22/24 Linux/Windows and uploads eval results; no push/PR was authorized to execute it."}],
-      "verification": ["Local equivalent checks pass on Node 24"], "notes": []
+      "acceptance_results": [{"criterion": "Required checks run on every PR/release with retained results.", "status": "passed", "evidence": "Workflow run 29217420494 passed Node 22/24 on Ubuntu/Windows and uploaded the configured result artifacts."}],
+      "verification": ["GitHub Actions workflow run 29217420494", "Local Node 24 checks"], "notes": []
     },
     {
       "id": "TECH-003", "approval": "approved", "revalidation": "confirmed", "disposition": "blocked", "sequence": 14,
@@ -115,11 +115,11 @@
       "verification": ["npm test", "npm run eval"], "notes": []
     },
     {
-      "id": "DOC-002", "approval": "approved", "revalidation": "confirmed", "disposition": "blocked", "sequence": 16,
-      "reason": "Metadata is aligned, but the new Node 22/24 Windows/Linux matrix has not run externally.",
+      "id": "DOC-002", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 16,
+      "reason": "Metadata is aligned with the passing Node 22/24 Windows/Linux matrix.",
       "files_changed": ["package.json", "package-lock.json", "README.md", ".github/workflows/ci.yml"],
-      "acceptance_results": [{"criterion": "Metadata and README match a passing Node 22/24 CI matrix.", "status": "blocked", "evidence": "Node 24 local checks pass; Node 22/Windows await first CI run."}],
-      "verification": ["Node 24 build/test/package pass"], "notes": ["A local Node 22 runtime could not be obtained in this runner."]
+      "acceptance_results": [{"criterion": "Metadata and README match a passing Node 22/24 CI matrix.", "status": "passed", "evidence": "Workflow run 29217420494 passed Node 22 and 24 on Ubuntu and Windows."}],
+      "verification": ["GitHub Actions workflow run 29217420494", "Node 24 local build/test/package"], "notes": []
     },
     {
       "id": "UX-003", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 17,

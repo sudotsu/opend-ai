@@ -50,7 +50,7 @@ Approved, changed, blocked (sequence 12). The two newly confirmed defects are fi
 
 ## TECH-005 — Release gates do not exercise the shipped product matrix
 
-Approved, confirmed, blocked (sequence 13). CI now targets Node 22/24 on Linux/Windows with install, tests, build, CLI smoke, fact check, package smoke, deterministic evals, and artifacts. It cannot be marked complete until GitHub runs the new matrix.
+Approved, confirmed, implemented (sequence 13). CI targets Node 22/24 on Linux/Windows with install, tests, build, CLI smoke, fact check, package smoke, deterministic evals, and artifacts. All four jobs passed on draft PR #8, workflow run 29217420494.
 
 ## TECH-003 — “Any OpenAI-compatible endpoint” is not a defined compatibility contract
 
@@ -62,7 +62,7 @@ Approved, confirmed, implemented (sequence 15). Provider-specific default contex
 
 ## DOC-002 — Supported Node and package metadata are obsolete or incomplete
 
-Approved, confirmed, blocked (sequence 16). Node 22/24 engines, package manager, repository, bugs, homepage, README, and CI matrix are aligned. Node 24 passes locally; Node 22/Windows await CI.
+Approved, confirmed, implemented (sequence 16). Node 22/24 engines, package manager, repository, bugs, homepage, README, and CI matrix are aligned. All four Node 22/24 Linux/Windows jobs passed on draft PR #8.
 
 ## UX-003 — Config examples still instruct legacy filenames
 
