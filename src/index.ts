@@ -152,7 +152,11 @@ if (cli.profile === 'unsafe-host') {
   console.error(theme.danger.bold('WARNING: unsafe-host is active. Model commands can affect the full machine and network.'));
 }
 
-pruneSessions(config.sessionRetentionDays);
+try {
+  pruneSessions(config.sessionRetentionDays);
+} catch (error: any) {
+  console.error(theme.warn(`Warning: session retention maintenance failed (${error.message}); continuing startup.`));
+}
 
 const extraDenylist = compileExtraDenylist(config.extraDenylist);
 

@@ -54,7 +54,8 @@
   "dependencies": {
     "chalk": "^5.3.0",
     "dotenv": "^16.4.5",
-    "openai": "^4.82.0"
+    "openai": "^4.82.0",
+    "re2js": "^2.8.6"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

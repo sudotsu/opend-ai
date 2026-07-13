@@ -183,10 +183,23 @@ export function deleteSession(name: string, dir: string = DEFAULT_SESSION_DIR): 
 export function pruneSessions(retentionDays: number, dir: string = DEFAULT_SESSION_DIR): number {
   if (!Number.isInteger(retentionDays) || retentionDays <= 0 || !fs.existsSync(dir)) return 0;
   const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+  let files: string[];
+  try {
+    files = fs.readdirSync(dir).filter((item) => item.endsWith('.json'));
+  } catch {
+    return 0;
+  }
   let removed = 0;
-  for (const file of fs.readdirSync(dir).filter((item) => item.endsWith('.json'))) {
+  for (const file of files) {
     const target = path.join(dir, file);
-    if (fs.statSync(target).mtimeMs < cutoff) { fs.rmSync(target); removed++; }
+    try {
+      const stats = fs.lstatSync(target);
+      if (!stats.isFile() || stats.mtimeMs >= cutoff) continue;
+      fs.rmSync(target);
+      removed++;
+    } catch {
+      // Retention is best-effort startup maintenance; one bad entry must not block the CLI.
+    }
   }
   return removed;
 }

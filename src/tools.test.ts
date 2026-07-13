@@ -2,7 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createToolPolicy, editFile, grepSearch, readFile, runCommand, writeFile } from './tools.js';
+import { commandEnvironment, createToolPolicy, editFile, grepSearch, readFile, runCommand, writeFile } from './tools.js';
 
 let dir: string;
 beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-tools-')); });
@@ -43,11 +43,22 @@ describe('workspace tool policy', () => {
     expect(() => readFile('.netrc', undefined, undefined, policy)).toThrow(/Protected path/);
   });
 
-  it('rejects oversized reads and risky regexes before matching', () => {
+  it('rejects oversized and non-regular edit targets before reading', () => {
+    const policy = createToolPolicy({ workspaceRoot: dir });
+    fs.writeFileSync(path.join(dir, 'large.txt'), Buffer.alloc(1_000_001));
+    fs.mkdirSync(path.join(dir, 'folder'));
+    expect(() => editFile('large.txt', 'x', 'y', policy)).toThrow(/edit limit/);
+    expect(() => editFile('folder', 'x', 'y', policy)).toThrow(/not a regular file/);
+  });
+
+  it('rejects oversized reads and uses bounded linear-time regex matching', () => {
     const policy = createToolPolicy({ workspaceRoot: dir });
     fs.writeFileSync(path.join(dir, 'large.txt'), Buffer.alloc(1_000_001));
     expect(() => readFile('large.txt', undefined, undefined, policy)).toThrow(/read limit/);
-    expect(() => grepSearch('(a+)+$', '.', policy)).toThrow(/nested quantifiers/);
+    fs.writeFileSync(path.join(dir, 'search.txt'), `Hello   WORLD\n${'a'.repeat(100_000)}c`);
+    expect(grepSearch('hello\\s+world', 'search.txt', policy)).toContain('Hello   WORLD');
+    expect(grepSearch('(aa|a)*b', 'search.txt', policy)).toBe('[]');
+    expect(() => grepSearch('(', 'search.txt', policy)).toThrow(/Invalid or unsupported regex pattern/);
   });
 
   it('terminates command trees when cancelled', async () => {
@@ -58,6 +69,29 @@ describe('workspace tool policy', () => {
     setTimeout(() => controller.abort(), 25);
     await expect(resultPromise).resolves.toContain('command cancelled');
     await expect(runCommand('echo no', policy, AbortSignal.abort())).resolves.toContain('cancelled before launch');
+  });
+
+  it('constructs a platform-aware minimal command environment and executes unsafe-host with it', async () => {
+    const policy = createToolPolicy({ workspaceRoot: dir, executionProfile: 'unsafe-host' });
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-env-'));
+    try {
+      const env = commandEnvironment(policy, process.platform, { ...process.env, OPEND_TEST_SECRET: 'do-not-copy' }, tempRoot);
+      expect(env.OPEND_WORKSPACE).toBe(dir);
+      expect(env.OPEND_TEST_SECRET).toBeUndefined();
+      expect(env.PATH).toContain(path.delimiter);
+      if (process.platform === 'win32') {
+        expect(env.USERPROFILE).toBe(path.join(tempRoot, 'opend-home'));
+        expect(env.TEMP).toBe(tempRoot);
+        expect(env.TMP).toBe(tempRoot);
+      } else {
+        expect(env.HOME).toBe(path.join(tempRoot, 'opend-home'));
+        expect(env.TMPDIR).toBe(tempRoot);
+      }
+      const result = await runCommand('node -p "process.env.OPEND_WORKSPACE"', policy);
+      expect(result).toContain(dir);
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
   });
 
   it('kills the full unsafe-host process group on timeout', async () => {

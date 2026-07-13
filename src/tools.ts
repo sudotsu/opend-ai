@@ -1,6 +1,10 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { spawn, spawnSync } from 'child_process';
+import { RE2JS } from 're2js';
+
+const MAX_FILE_BYTES = 1_000_000;
 
 export type ExecutionProfile = 'sandbox' | 'unsafe-host';
 
@@ -131,7 +135,7 @@ export function readFile(filePath: string, startLine?: number, endLine?: number,
   if (!fs.existsSync(absolutePath)) throw new Error(`File not found: ${filePath}`);
   const stats = fs.lstatSync(absolutePath);
   if (!stats.isFile()) throw new Error(`Path is not a regular file: ${filePath}`);
-  if (stats.size > 1_000_000) throw new Error(`File exceeds the 1000000-byte read limit: ${filePath}`);
+  if (stats.size > MAX_FILE_BYTES) throw new Error(`File exceeds the ${MAX_FILE_BYTES}-byte read limit: ${filePath}`);
   const content = fs.readFileSync(absolutePath, 'utf-8');
   const MAX_CHARS = 20000;
   if (startLine === undefined && endLine === undefined && content.length > MAX_CHARS) {
@@ -175,6 +179,9 @@ export function editFile(filePath: string, oldString: string, newString: string,
   const relative = relativeForPolicy(absolutePath, policy);
   if (isProtected(relative)) throw new Error(`Protected path cannot be edited by the model: ${relative}`);
   if (!fs.existsSync(absolutePath)) throw new Error(`File not found: ${filePath}`);
+  const stats = fs.lstatSync(absolutePath);
+  if (!stats.isFile()) throw new Error(`Path is not a regular file: ${filePath}`);
+  if (stats.size > MAX_FILE_BYTES) throw new Error(`File exceeds the ${MAX_FILE_BYTES}-byte edit limit: ${filePath}`);
   const content = fs.readFileSync(absolutePath, 'utf-8');
   let count = 0;
   let searchFrom = 0;
@@ -313,18 +320,33 @@ function runtimeMountArgs(): string[] {
  * @param policy - Tool policy providing the workspace path
  * @returns The command execution environment
  */
-function commandEnvironment(policy: ToolPolicy): NodeJS.ProcessEnv {
-  fs.mkdirSync('/tmp/opend-home', { recursive: true, mode: 0o700 });
-  const env: NodeJS.ProcessEnv = {
-    PATH: `${path.join(runtimePrefix(), 'bin')}:/usr/local/bin:/usr/bin:/bin`,
-    LANG: process.env.LANG || 'C.UTF-8',
-    TERM: process.env.TERM || 'dumb',
-    HOME: '/tmp/opend-home',
-    TMPDIR: '/tmp',
-    OPEND_WORKSPACE: policy.workspaceRoot
-  };
-  if (process.env.CI) env.CI = process.env.CI;
-  if (process.env.NODE_ENV) env.NODE_ENV = process.env.NODE_ENV;
+export function commandEnvironment(
+  policy: ToolPolicy,
+  platform: NodeJS.Platform = process.platform,
+  sourceEnv: NodeJS.ProcessEnv = process.env,
+  tempRoot: string = os.tmpdir()
+): NodeJS.ProcessEnv {
+  const home = path.join(tempRoot, 'opend-home');
+  fs.mkdirSync(home, { recursive: true, mode: 0o700 });
+  const env: NodeJS.ProcessEnv = { OPEND_WORKSPACE: policy.workspaceRoot };
+  if (platform === 'win32') {
+    const delimiter = platform === process.platform ? path.delimiter : ';';
+    const sourcePath = sourceEnv.PATH || sourceEnv.Path || '';
+    env.PATH = [...new Set([path.dirname(process.execPath), ...sourcePath.split(delimiter)].filter(Boolean))].join(delimiter);
+    env.HOME = home;
+    env.USERPROFILE = home;
+    env.TEMP = tempRoot;
+    env.TMP = tempRoot;
+    for (const key of ['SystemRoot', 'WINDIR', 'ComSpec', 'PATHEXT']) if (sourceEnv[key]) env[key] = sourceEnv[key];
+  } else {
+    env.PATH = [path.join(runtimePrefix(), 'bin'), '/usr/local/bin', '/usr/bin', '/bin'].join(path.delimiter);
+    env.LANG = sourceEnv.LANG || 'C.UTF-8';
+    env.TERM = sourceEnv.TERM || 'dumb';
+    env.HOME = home;
+    env.TMPDIR = tempRoot;
+  }
+  if (sourceEnv.CI) env.CI = sourceEnv.CI;
+  if (sourceEnv.NODE_ENV) env.NODE_ENV = sourceEnv.NODE_ENV;
   return env;
 }
 
@@ -439,10 +461,12 @@ export function grepSearch(pattern: string, searchPath: string, policy = createT
   const absolutePath = resolvePath(searchPath, policy);
   assertReadable(absolutePath, policy);
   if (!fs.existsSync(absolutePath)) throw new Error(`Path not found: ${searchPath}`);
-  if (/(?:\([^)]*[+*][^)]*\)|\\[dDsSwW](?:[+*]))\s*(?:[+*]|\{\d+(?:,\d*)?\})/.test(pattern)) {
-    throw new Error('Regex pattern rejected because nested quantifiers can cause excessive backtracking');
+  let regex: ReturnType<typeof RE2JS.compile>;
+  try {
+    regex = RE2JS.compile(pattern, RE2JS.CASE_INSENSITIVE);
+  } catch (error: any) {
+    throw new Error(`Invalid or unsupported regex pattern: ${error.message}`);
   }
-  const regex = new RegExp(pattern, 'i');
   const matches: { file: string; lineNumber: number; lineContent: string }[] = [];
   const visited = new Set<string>();
 
@@ -459,13 +483,12 @@ export function grepSearch(pattern: string, searchPath: string, policy = createT
       for (const file of fs.readdirSync(currentPath)) traverse(path.join(currentPath, file));
       return;
     }
-    if (!stats.isFile() || stats.size > 1_000_000) return;
+    if (!stats.isFile() || stats.size > MAX_FILE_BYTES) return;
     const relative = relativeForPolicy(currentPath, policy);
     if (isProtected(relative)) return;
     let content: string;
     try { content = fs.readFileSync(currentPath, 'utf-8'); } catch { return; }
     content.split('\n').forEach((line, index) => {
-      regex.lastIndex = 0;
       if (matches.length < 100 && regex.test(line)) {
         matches.push({ file: relative, lineNumber: index + 1, lineContent: line.trim() });
       }

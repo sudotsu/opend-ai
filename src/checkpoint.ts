@@ -29,6 +29,13 @@ function copyWorkspace(source: string, destination: string): void {
   });
 }
 
+function removeWorkspaceContents(workspaceRoot: string): void {
+  for (const entry of fs.readdirSync(workspaceRoot)) {
+    if (EXCLUDES.has(entry)) continue;
+    fs.rmSync(path.join(workspaceRoot, entry), { recursive: true, force: true });
+  }
+}
+
 /**
  * Determines whether a path is the same as or contained within another path.
  *
@@ -79,15 +86,29 @@ export function restoreCheckpoint(id: string, workspaceRoot: string, baseDir?: s
   if (!contains(fs.realpathSync(root), resolvedSource)) throw new Error('Invalid checkpoint id');
   const stageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-restore-'));
   const staged = path.join(stageRoot, 'workspace');
+  const recovery = path.join(stageRoot, 'recovery');
+  let retainRecovery = false;
   try {
     copyWorkspace(resolvedSource, staged);
-    for (const entry of fs.readdirSync(workspaceRoot)) {
-      if (EXCLUDES.has(entry)) continue;
-      fs.rmSync(path.join(workspaceRoot, entry), { recursive: true, force: true });
+    copyWorkspace(workspaceRoot, recovery);
+    try {
+      removeWorkspaceContents(workspaceRoot);
+      copyWorkspace(staged, workspaceRoot);
+    } catch (replacementError: any) {
+      try {
+        removeWorkspaceContents(workspaceRoot);
+        copyWorkspace(recovery, workspaceRoot);
+      } catch (rollbackError: any) {
+        retainRecovery = true;
+        throw new Error(
+          `Checkpoint restore failed (${replacementError.message}); rollback also failed (${rollbackError.message}). ` +
+          `Recovery data remains at "${recovery}".`
+        );
+      }
+      throw new Error(`Checkpoint restore failed; original workspace restored: ${replacementError.message}`);
     }
-    copyWorkspace(staged, workspaceRoot);
   } finally {
-    fs.rmSync(stageRoot, { recursive: true, force: true });
+    if (!retainRecovery) fs.rmSync(stageRoot, { recursive: true, force: true });
   }
 }
 

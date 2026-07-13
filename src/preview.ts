@@ -53,7 +53,7 @@ export function buildApprovalPreview(name: string, args: any, policy: ToolPolicy
     return { safe: false, operation: name === 'edit_file' ? 'edit' : 'overwrite', text: 'Refusing approval: existing target is binary or too large for a bounded preview.' };
   }
   if (name === 'edit_file') {
-    if (binary(args.new_string) || args.old_string.length + args.new_string.length > MAX_PREVIEW_CHARS) {
+    if (binary(args.old_string) || binary(args.new_string) || args.old_string.length + args.new_string.length > MAX_PREVIEW_CHARS) {
       return { safe: false, operation: 'edit', text: 'Refusing approval: proposed edit is binary or too large for a bounded preview.' };
     }
     return { safe: true, operation: 'edit', text: `${lines('-', args.old_string, 60)}\n${lines('+', args.new_string, 60)}` };

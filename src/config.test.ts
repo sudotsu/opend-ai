@@ -1,5 +1,41 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { describe, it, expect } from 'vitest';
-import { mergeConfig } from './config.js';
+import { loadConfig, mergeConfig } from './config.js';
+
+describe('loadConfig filesystem resolution', () => {
+  it('loads real home and project config paths with project and env precedence', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-config-'));
+    const homeDir = path.join(root, 'home');
+    const cwd = path.join(root, 'project');
+    fs.mkdirSync(homeDir);
+    fs.mkdirSync(cwd);
+    fs.writeFileSync(path.join(homeDir, '.opendrc.json'), JSON.stringify({ model: 'home-model', apiKey: 'home-key' }));
+    fs.writeFileSync(path.join(cwd, '.opendrc.json'), JSON.stringify({ model: 'project-model' }));
+    try {
+      expect(loadConfig({}, { homeDir, cwd })).toMatchObject({ model: 'project-model', apiKey: 'home-key' });
+      expect(loadConfig({ VENICE_MODEL: 'env-model' }, { homeDir, cwd }).model).toBe('env-model');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('uses legacy home and project filenames only when primary files are absent', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-config-'));
+    const homeDir = path.join(root, 'home');
+    const cwd = path.join(root, 'project');
+    fs.mkdirSync(homeDir);
+    fs.mkdirSync(cwd);
+    fs.writeFileSync(path.join(homeDir, '.veniceagentrc.json'), JSON.stringify({ apiKey: 'legacy-home-key' }));
+    fs.writeFileSync(path.join(cwd, '.veniceagentrc.json'), JSON.stringify({ model: 'legacy-project-model' }));
+    try {
+      expect(loadConfig({}, { homeDir, cwd })).toMatchObject({ apiKey: 'legacy-home-key', model: 'legacy-project-model' });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
 
 describe('mergeConfig precedence: DEFAULTS < home file < cwd file < env', () => {
   it('falls back to defaults when nothing is set', () => {

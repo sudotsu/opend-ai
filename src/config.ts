@@ -1,5 +1,6 @@
 import fs from 'fs';
-import { resolvePath } from './tools.js';
+import os from 'os';
+import path from 'path';
 import type { Posture } from './prompts.js';
 
 // USD per 1,000,000 tokens. Default 0/0 = unknown → the CLI shows token counts
@@ -197,11 +198,22 @@ export function mergeConfig(
 
 // Prefer the current `.opendrc.json`; fall back to the legacy `.veniceagentrc.json`
 // name (from when the tool was "venice-agent") so existing config files keep working.
-function readRcPreferring(primary: string, legacy: string): Record<string, any> {
-  const primaryPath = resolvePath(primary);
+interface ConfigLoadPaths {
+  homeDir: string;
+  cwd: string;
+}
+
+function resolveConfigPath(input: string, paths: ConfigLoadPaths): string {
+  if (input === '~') return paths.homeDir;
+  if (input.startsWith('~/') || input.startsWith('~\\')) return path.join(paths.homeDir, input.slice(2));
+  return path.resolve(paths.cwd, input);
+}
+
+function readRcPreferring(primary: string, legacy: string, paths: ConfigLoadPaths): Record<string, any> {
+  const primaryPath = resolveConfigPath(primary, paths);
   return fs.existsSync(primaryPath)
     ? readJsonIfExists(primaryPath)
-    : readJsonIfExists(resolvePath(legacy));
+    : readJsonIfExists(resolveConfigPath(legacy, paths));
 }
 
 /**
@@ -210,8 +222,11 @@ function readRcPreferring(primary: string, legacy: string): Record<string, any> 
  * always wins so existing .env workflows keep working. The legacy `.veniceagentrc.json`
  * name is still read when the new one is absent.
  */
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const homeCfg = readRcPreferring('~/.opendrc.json', '~/.veniceagentrc.json');
-  const cwdCfg = readRcPreferring('.opendrc.json', '.veniceagentrc.json');
+export function loadConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  paths: ConfigLoadPaths = { homeDir: os.homedir(), cwd: process.cwd() }
+): AppConfig {
+  const homeCfg = readRcPreferring('~/.opendrc.json', '~/.veniceagentrc.json', paths);
+  const cwdCfg = readRcPreferring('.opendrc.json', '.veniceagentrc.json', paths);
   return mergeConfig(homeCfg, cwdCfg, env);
 }

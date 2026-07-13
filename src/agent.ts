@@ -596,9 +596,10 @@ export class VeniceAgent {
       } catch (err: any) {
         if (this.isAbort(err)) return ''; // cancelled before any history commit
         if (this.isContextOverflow(err)) {
+          let overflowError = err;
           while (true) {
             const previous = this.contextTokens;
-            if (previous <= 1024) throw err;
+            if (previous <= 1024) throw overflowError;
             this.contextTokens = Math.max(1024, Math.floor(previous * 0.75));
             this.onNotice?.(`provider rejected the context window; reducing budget from ${previous} to ${this.contextTokens} tokens and pruning again`);
             try {
@@ -608,7 +609,7 @@ export class VeniceAgent {
             } catch (retryError: any) {
               if (this.isAbort(retryError)) return '';
               if (!this.isContextOverflow(retryError)) throw retryError;
-              err = retryError;
+              overflowError = retryError;
             }
           }
         } else {

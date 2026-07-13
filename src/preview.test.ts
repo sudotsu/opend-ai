@@ -25,4 +25,12 @@ describe('approval previews', () => {
     fs.writeFileSync(path.join(dir, 'large'), 'x'.repeat(20_001));
     expect(buildApprovalPreview('write_file', { path: 'large', content: 'small' }, policy).safe).toBe(false);
   });
+
+  it('rejects binary old and new edit strings independently', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-preview-')); dirs.push(dir);
+    const policy = createToolPolicy({ workspaceRoot: dir });
+    fs.writeFileSync(path.join(dir, 'a.txt'), 'old');
+    expect(buildApprovalPreview('edit_file', { path: 'a.txt', old_string: 'old\0', new_string: 'new' }, policy).safe).toBe(false);
+    expect(buildApprovalPreview('edit_file', { path: 'a.txt', old_string: 'old', new_string: 'new\0' }, policy).safe).toBe(false);
+  });
 });
