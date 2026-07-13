@@ -2,15 +2,99 @@
 import readline from 'readline';
 import os from 'os';
 import path from 'path';
+import fs from 'fs';
+import { spawnSync } from 'child_process';
 import dotenv from 'dotenv';
 import chalk from 'chalk';
 import { Spinner } from './spinner.js';
 import { VeniceAgent } from './agent.js';
 import { loadConfig } from './config.js';
-import { saveSession, loadSession, listSessions } from './session.js';
+import { saveSession, loadSession, listSessions, deleteSession, pruneSessions } from './session.js';
 import { compileExtraDenylist, isCatastrophic } from './denylist.js';
 import { pink, theme, styleThinkingLine, summarizeArgs } from './render.js';
 import { formatChangelog, loadChangelog } from './updates.js';
+import { createToolPolicy, type ExecutionProfile } from './tools.js';
+import { resolveProviderProfile, providerDisclosure } from './provider.js';
+import { buildApprovalPreview } from './preview.js';
+import { createCheckpoint, restoreCheckpoint, listCheckpoints } from './checkpoint.js';
+
+type CliOptions = {
+  command: 'interactive' | 'exec';
+  prompt?: string;
+  help: boolean;
+  version: boolean;
+  profile: ExecutionProfile;
+  profileExplicit: boolean;
+  allowNetwork: boolean;
+  allowChanges: boolean;
+  workspace: string;
+};
+
+function parseCli(argv: string[]): CliOptions {
+  const options: CliOptions = {
+    command: argv[0] === 'exec' ? 'exec' : 'interactive',
+    help: false,
+    version: false,
+    profile: 'sandbox',
+    profileExplicit: false,
+    allowNetwork: false,
+    allowChanges: false,
+    workspace: process.cwd()
+  };
+  const input = options.command === 'exec' ? argv.slice(1) : argv;
+  const prompt: string[] = [];
+  for (let i = 0; i < input.length; i++) {
+    const arg = input[i];
+    if (arg === '--help' || arg === '-h') options.help = true;
+    else if (arg === '--version' || arg === '-v') options.version = true;
+    else if (arg === '--allow-network') options.allowNetwork = true;
+    else if (arg === '--allow-changes') options.allowChanges = true;
+    else if (arg === '--profile') {
+      const profile = input[++i];
+      if (profile !== 'sandbox' && profile !== 'unsafe-host') throw new Error('--profile must be sandbox or unsafe-host');
+      options.profile = profile;
+      options.profileExplicit = true;
+    } else if (arg === '--workspace') {
+      const workspace = input[++i];
+      if (!workspace) throw new Error('--workspace requires a path');
+      options.workspace = workspace;
+    } else if (arg.startsWith('-')) throw new Error(`Unknown option: ${arg}`);
+    else if (options.command === 'exec') prompt.push(arg);
+    else throw new Error(`Unexpected argument: ${arg}`);
+  }
+  options.prompt = prompt.join(' ').trim() || undefined;
+  return options;
+}
+
+const packageJson = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
+const CLI_HELP = `opend ${packageJson.version}
+
+Usage:
+  opend [options]
+  opend exec [options] <prompt>
+
+Options:
+  -h, --help                 Show help without provider credentials
+  -v, --version              Show version without provider credentials
+  --workspace <path>         Restrict tools to this workspace (default: cwd)
+  --profile sandbox          Bubblewrap boundary; fails closed if unavailable (default)
+  --profile unsafe-host      Explicit expert opt-in to unrestricted host commands
+  --allow-network            Allow command network inside the sandbox
+  --allow-changes            Permit destructive tools in non-interactive exec mode`;
+
+let cli: CliOptions;
+try {
+  cli = parseCli(process.argv.slice(2));
+} catch (error: any) {
+  console.error(`opend: ${error.message}\nRun opend --help for usage.`);
+  process.exit(2);
+}
+if (cli.help) { console.log(CLI_HELP); process.exit(0); }
+if (cli.version) { console.log(packageJson.version); process.exit(0); }
+if (cli.command === 'exec' && !cli.prompt) {
+  console.error('opend exec requires a prompt.');
+  process.exit(2);
+}
 
 const HOME_ENV_PATH = path.join(os.homedir(), '.opend', '.env');
 // Legacy home file from when the tool was "venice-agent"; still read as a fallback.
@@ -26,18 +110,37 @@ dotenv.config({ path: HOME_ENV_PATH });
 dotenv.config({ path: LEGACY_HOME_ENV_PATH });
 
 const config = loadConfig();
+const provider = resolveProviderProfile(
+  config.baseUrl,
+  config.model,
+  config.contextTokensConfigured ? config.contextTokens : undefined
+);
 
-if (!config.apiKey) {
-  console.error(theme.danger('\nNo Venice API key found.') + theme.dim(' Set it up once (works from any directory):'));
+if (provider.requiresApiKey && !config.apiKey) {
+  console.error(theme.danger(`\nNo API key found for ${provider.label}.`) + theme.dim(' Set it up once (works from any directory):'));
   console.error(theme.accent(`  mkdir -p ~/.opend && echo "VENICE_API_KEY=your_key" >> "${HOME_ENV_PATH}"`));
   console.error(
     theme.dim('Or export VENICE_API_KEY in your shell, or add ') +
     theme.accent('"apiKey"') +
     theme.dim(' to ~/.opendrc.json.')
   );
-  console.error(theme.dim('Get a key at ') + chalk.underline('https://venice.ai') + '\n');
+  if (provider.kind === 'venice') console.error(theme.dim('Get a key at ') + chalk.underline('https://venice.ai') + '\n');
+  else console.error(theme.dim('Set VENICE_API_KEY to the credential required by this remote endpoint.\n'));
   process.exit(1);
 }
+
+const toolPolicy = createToolPolicy({
+  workspaceRoot: cli.workspace,
+  executionProfile: cli.profile,
+  allowNetwork: cli.allowNetwork,
+  timeoutMs: config.commandTimeoutMs
+});
+
+if (cli.profile === 'unsafe-host') {
+  console.error(theme.danger.bold('WARNING: unsafe-host is active. Model commands can affect the full machine and network.'));
+}
+
+pruneSessions(config.sessionRetentionDays);
 
 const extraDenylist = compileExtraDenylist(config.extraDenylist);
 
@@ -166,12 +269,14 @@ function thinkingLabel(): string {
 // Ask mode: a single accent chevron. Bypass mode: a red root-style `#` prefix —
 // `#` reads as "root shell / this can bite you", which is exactly bypass's tradeoff.
 function promptText(): string {
+  if (cli.profile === 'unsafe-host') return theme.danger.bold('[UNSAFE HOST] # ❯ ');
   return bypass ? theme.danger.bold('# ❯ ') : theme.accent.bold('❯ ');
 }
 
 let render: RenderSession | null = null;
 let streaming = false;
 let controller: AbortController | null = null;
+let rl: readline.Interface;
 
 const agent = new VeniceAgent({
   apiKey: config.apiKey,
@@ -179,6 +284,7 @@ const agent = new VeniceAgent({
   model: config.model,
   posture: config.posture,
   contextTokens: config.contextTokens,
+  contextTokensConfigured: config.contextTokensConfigured,
   maxRetries: config.maxRetries,
   pricing: config.pricing,
   temperature: config.temperature,
@@ -187,18 +293,47 @@ const agent = new VeniceAgent({
   summarizeOnPrune: config.summarizeOnPrune,
   maxSummaryTokens: config.maxSummaryTokens,
   veniceParams: config.veniceParams,
+  toolPolicy,
   onThinking: (text) => {
-    if (showThinking) render?.thinking(text);
+    if (cli.command === 'exec') {
+      if (showThinking) process.stderr.write(text);
+    } else if (showThinking) render?.thinking(text);
   },
-  onContent: (text) => render?.content(text),
-  onToolStart: (name, args) => render?.toolStart(name, args),
-  onToolEnd: (name, result) => render?.toolEnd(name, result),
-  onNotice: (message) => render?.notice(message),
+  onContent: (text) => cli.command === 'exec' ? process.stdout.write(text) : render?.content(text),
+  onToolStart: (name, args) => cli.command === 'exec'
+    ? process.stderr.write(`\n[tool] ${name} ${summarizeArgs(name, args)}\n`)
+    : render?.toolStart(name, args),
+  onToolEnd: (name, result) => cli.command === 'exec'
+    ? process.stderr.write(`[tool-result] ${name}: ${result.slice(0, 300).replace(/\n/g, ' ')}\n`)
+    : render?.toolEnd(name, result),
+  onNotice: (message) => cli.command === 'exec'
+    ? process.stderr.write(`[notice] ${message}\n`)
+    : render?.notice(message),
   onConfirm: async (name, args) => {
     const catastrophic = isCatastrophic(name, args, extraDenylist);
 
+    let previewSafe = true;
+    let previewText = '';
+    let operation = '';
+    if (name === 'write_file' || name === 'edit_file') {
+      try {
+        const preview = buildApprovalPreview(name, args, toolPolicy);
+        previewSafe = preview.safe;
+        previewText = preview.text;
+        operation = preview.operation;
+      } catch (error: any) {
+        previewSafe = false;
+        previewText = `Refusing approval: ${error.message}`;
+      }
+    }
+
+    if (cli.command === 'exec') {
+      if (previewText) process.stderr.write(`\n${operation.toUpperCase()} ${args.path}\n${previewText}\n`);
+      return cli.allowChanges && previewSafe;
+    }
+
     // In bypass mode, wave through everything except catastrophic commands.
-    if (bypass && !catastrophic) return true;
+    if (bypass && !catastrophic && previewSafe) return true;
 
     if (catastrophic) {
       console.log('\n' + theme.danger.bold('☠️  CATASTROPHIC COMMAND — confirming even in bypass mode:'));
@@ -209,10 +344,14 @@ const agent = new VeniceAgent({
       console.log('The agent wants to run the following shell command:');
       console.log(chalk.bgBlack.white('  $ ' + args.command));
     } else if (name === 'write_file') {
-      console.log('The agent wants to write to file: ' + theme.accent(args.path));
+      console.log(`The agent wants to ${operation} file: ` + theme.accent(args.path));
+      console.log(previewText);
     } else if (name === 'edit_file') {
       console.log('The agent wants to edit file: ' + theme.accent(args.path));
+      console.log(previewText);
     }
+
+    if (!previewSafe) return false;
 
     // Use the main `rl` interface for the confirmation question — creating a second
     // readline interface on the same stdin causes the "y" to be consumed by the nested
@@ -233,6 +372,11 @@ const HELP_TEXT = [
   theme.accent('/save [name]') + theme.dim(' — save the current conversation to disk'),
   theme.accent('/load <name>') + theme.dim(' — restore a previously saved conversation'),
   theme.accent('/sessions') + theme.dim(' — list saved conversations'),
+  theme.accent('/delete-session <name>') + theme.dim(' — delete a saved conversation'),
+  theme.accent('/diff') + theme.dim(' — review Git changes and untracked paths'),
+  theme.accent('/checkpoint') + theme.dim(' — snapshot the workspace before a task'),
+  theme.accent('/checkpoints') + theme.dim(' — list recovery snapshots'),
+  theme.accent('/undo <id>') + theme.dim(' — explicitly restore a checkpoint'),
   theme.accent('/usage') + theme.dim(' — show token usage (and cost, if pricing is configured)'),
   theme.accent('/updates') + theme.dim(' — list changes & fixes by date') + theme.dim(' (alias: ') + theme.accent('/latest') + theme.dim(')'),
   theme.accent('/help') + theme.dim(' — show this list'),
@@ -240,25 +384,62 @@ const HELP_TEXT = [
   theme.accent('exit') + theme.dim(' / ') + theme.accent('quit') + theme.dim(' — quit (Ctrl+C also cancels an in-flight answer first)')
 ].join('\n');
 
+function workspaceDiff(): string {
+  const status = spawnSync('git', ['status', '--short', '--untracked-files=all'], { cwd: toolPolicy.workspaceRoot, encoding: 'utf-8' });
+  if (status.status !== 0) return 'Current workspace is not a supported Git repository.';
+  const diff = spawnSync('git', ['diff', '--no-ext-diff', '--', '.'], { cwd: toolPolicy.workspaceRoot, encoding: 'utf-8' });
+  const cached = spawnSync('git', ['diff', '--cached', '--no-ext-diff', '--', '.'], { cwd: toolPolicy.workspaceRoot, encoding: 'utf-8' });
+  const untracked = status.stdout.split('\n').filter((line) => line.startsWith('?? ')).map((line) => line.slice(3));
+  const untrackedPreviews = untracked.map((relative) => {
+    const target = path.join(toolPolicy.workspaceRoot, relative);
+    try {
+      const stats = fs.statSync(target);
+      if (!stats.isFile()) return `UNTRACKED ${relative} (not a regular file)`;
+      const content = fs.readFileSync(target, 'utf-8');
+      return `UNTRACKED ${relative}\n${content.slice(0, 20000)}${content.length > 20000 ? '\n… truncated' : ''}`;
+    } catch (error: any) {
+      return `UNTRACKED ${relative} (preview unavailable: ${error.message})`;
+    }
+  }).join('\n\n');
+  const output = [status.stdout.trim(), cached.stdout.trim(), diff.stdout.trim(), untrackedPreviews].filter(Boolean).join('\n\n');
+  return output || 'No Git changes in the workspace.';
+}
+
 function printBanner() {
   const bar = theme.accent('▌');
   const line = (s = '') => console.log(s ? bar + ' ' + s : bar);
-  const key = (k: string) => theme.dim(k.padEnd(9));
+  const key = (k: string) => theme.dim(k.padEnd(10));
   console.log('');
   line(theme.accent.bold('opend') + theme.dim(' · uncensored cli coding agent'));
   line();
   line(key('model') + theme.ok(agent.getModel()));
+  line(key('provider') + theme.dim(providerDisclosure(agent.getProviderProfile())));
+  line(key('workspace') + theme.accent(toolPolicy.workspaceRoot));
+  line(key('boundary') + (cli.profile === 'unsafe-host'
+    ? theme.danger.bold('UNSAFE HOST · unrestricted effects')
+    : theme.ok(`bubblewrap · workspace write · network ${cli.allowNetwork ? 'allowed' : 'blocked'}`)));
   line(key('mode') + modeLabel());
   line(key('posture') + postureLabel());
   line(key('thinking') + thinkingLabel());
   line();
   line(theme.dim('/help for commands'));
+  if (cli.profile === 'unsafe-host') line(theme.danger.bold('WARNING: unsafe-host can affect the full machine and network.'));
   console.log('');
+}
+
+if (cli.command === 'exec') {
+  try {
+    await agent.chat(cli.prompt!);
+    process.exit(0);
+  } catch (error: any) {
+    console.error(`\nopend exec failed: ${error.message}`);
+    process.exit(1);
+  }
 }
 
 printBanner();
 
-const rl = readline.createInterface({
+rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
   prompt: promptText()
@@ -269,6 +450,7 @@ rl.prompt();
 // Silently saves the current conversation when the session ends so work is
 // never lost just because the user forgot to /save. Skips if history is empty.
 function autoSaveOnExit(): void {
+  if (!config.autoSave) return;
   const history = agent.getHistory();
   // history[0] is always the system prompt — only save if there are actual user/assistant turns.
   if (history.filter((m: any) => m.role !== 'system').length === 0) return;
@@ -307,6 +489,7 @@ function printUsage() {
 // next one starts. Ctrl+C (SIGINT, below) is unaffected and still cancels
 // immediately regardless of this queue.
 let lineQueue: Promise<void> = Promise.resolve();
+let automaticCheckpoint: string | null = null;
 
 async function handleLine(line: string): Promise<void> {
   const input = line.trim();
@@ -396,6 +579,44 @@ async function handleLine(line: string): Promise<void> {
     return;
   }
 
+  if (lower.startsWith('/delete-session ')) {
+    const name = input.slice('/delete-session'.length).trim();
+    console.log(deleteSession(name)
+      ? theme.accent(`\nDeleted session ${name}. Filesystem deletion cannot guarantee physical-media erasure.\n`)
+      : theme.dim(`\nNo saved session named ${name}.\n`));
+    rl.prompt();
+    return;
+  }
+
+  if (lower === '/diff') {
+    console.log('\n' + workspaceDiff() + '\n');
+    rl.prompt();
+    return;
+  }
+
+  if (lower === '/checkpoint') {
+    const id = createCheckpoint(toolPolicy.workspaceRoot);
+    automaticCheckpoint = id;
+    console.log(theme.accent(`\nCreated checkpoint ${id}.\n`));
+    rl.prompt();
+    return;
+  }
+
+  if (lower === '/checkpoints') {
+    const checkpoints = listCheckpoints();
+    console.log(checkpoints.length ? '\n' + checkpoints.join('\n') + '\n' : theme.dim('\nNo checkpoints found.\n'));
+    rl.prompt();
+    return;
+  }
+
+  if (lower.startsWith('/undo ')) {
+    const id = input.slice('/undo'.length).trim();
+    restoreCheckpoint(id, toolPolicy.workspaceRoot);
+    console.log(theme.warn(`\nRestored checkpoint ${id}. Review /diff before continuing.\n`));
+    rl.prompt();
+    return;
+  }
+
   if (lower === '/save' || lower.startsWith('/save ')) {
     const name = input.slice('/save'.length).trim() || new Date().toISOString();
     const savedPath = saveSession(name, {
@@ -424,6 +645,11 @@ async function handleLine(line: string): Promise<void> {
     }
     rl.prompt();
     return;
+  }
+
+  if (!automaticCheckpoint) {
+    automaticCheckpoint = createCheckpoint(toolPolicy.workspaceRoot);
+    console.log(theme.dim(`\nRecovery checkpoint → ${automaticCheckpoint}`));
   }
 
   render = new RenderSession();

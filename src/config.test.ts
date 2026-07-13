@@ -7,15 +7,23 @@ describe('mergeConfig precedence: DEFAULTS < home file < cwd file < env', () => 
     expect(cfg.model).toBe('olafangensan-glm-4.7-flash-heretic');
     expect(cfg.posture).toBe('coding');
     expect(cfg.contextTokens).toBe(96000);
+    expect(cfg.contextTokensConfigured).toBe(false);
     expect(cfg.maxRetries).toBe(3);
     expect(cfg.pricing).toEqual({ in: 0, out: 0 });
     expect(cfg.apiKey).toBe('');
+    expect(cfg.sessionRetentionDays).toBe(30);
+    expect(cfg.autoSave).toBe(true);
   });
 
   it('home config overrides defaults', () => {
     const cfg = mergeConfig({ model: 'home-model', maxRetries: 5 }, {}, {});
     expect(cfg.model).toBe('home-model');
     expect(cfg.maxRetries).toBe(5);
+  });
+
+  it('distinguishes a provider default from an explicit context override', () => {
+    expect(mergeConfig({}, {}, {}).contextTokensConfigured).toBe(false);
+    expect(mergeConfig({ contextTokens: 64000 }, {}, {}).contextTokensConfigured).toBe(true);
   });
 
   it('cwd config overrides home config', () => {
@@ -199,5 +207,18 @@ describe('mergeConfig summary field validation', () => {
     expect(mergeConfig({ maxSummaryTokens: 0 }, {}, {}).maxSummaryTokens).toBe(1024);
     expect(mergeConfig({ maxSummaryTokens: -10 }, {}, {}).maxSummaryTokens).toBe(1024);
     expect(mergeConfig({ maxSummaryTokens: 12.5 }, {}, {}).maxSummaryTokens).toBe(1024);
+  });
+});
+
+describe('session policy validation', () => {
+  it('accepts explicit retention and autosave settings', () => {
+    const cfg = mergeConfig({ sessionRetentionDays: 0, autoSave: false }, {}, {});
+    expect(cfg.sessionRetentionDays).toBe(0);
+    expect(cfg.autoSave).toBe(false);
+  });
+
+  it('rejects malformed session policy settings', () => {
+    expect(mergeConfig({ sessionRetentionDays: -1 }, {}, {}).sessionRetentionDays).toBe(30);
+    expect(mergeConfig({ autoSave: 'false' } as any, {}, {}).autoSave).toBe(true);
   });
 });

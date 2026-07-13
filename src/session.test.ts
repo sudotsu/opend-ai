@@ -2,7 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { saveSession, loadSession, listSessions } from './session.js';
+import { saveSession, loadSession, listSessions, deleteSession, pruneSessions } from './session.js';
 
 let dir: string;
 
@@ -51,5 +51,25 @@ describe('session save/load/list', () => {
 
   it('returns an empty list for a directory with no sessions', () => {
     expect(listSessions(dir)).toEqual([]);
+  });
+
+  it('uses least-privilege permissions and redacts common secrets', () => {
+    const p = saveSession('secure', { model: 'm', messages: [{ role: 'user', content: 'api_key=supersecretvalue sk-abcdefghijklmnop' }] }, dir);
+    if (process.platform !== 'win32') {
+      expect(fs.statSync(dir).mode & 0o777).toBe(0o700);
+      expect(fs.statSync(p).mode & 0o777).toBe(0o600);
+    }
+    const raw = fs.readFileSync(p, 'utf-8');
+    expect(raw).not.toContain('supersecretvalue');
+    expect(raw).not.toContain('sk-abcdefghijklmnop');
+  });
+
+  it('deletes named sessions and prunes expired sessions', () => {
+    const p = saveSession('old', { model: 'm', messages: [] }, dir);
+    fs.utimesSync(p, new Date(0), new Date(0));
+    expect(pruneSessions(30, dir)).toBe(1);
+    saveSession('new', { model: 'm', messages: [] }, dir);
+    expect(deleteSession('new', dir)).toBe(true);
+    expect(deleteSession('new', dir)).toBe(false);
   });
 });

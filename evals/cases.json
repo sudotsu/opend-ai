@@ -1,0 +1,22 @@
+[
+  {"id":"PROVIDER-01","category":"provider","description":"Exact Venice hostname is classified as Venice"},
+  {"id":"PROVIDER-02","category":"provider","description":"Loopback Ollama needs no API key"},
+  {"id":"PROVIDER-03","category":"provider","description":"Hostname spoof does not enable Venice extensions"},
+  {"id":"PROVIDER-04","category":"provider","description":"Non-HTTP provider URL is rejected"},
+  {"id":"TOOLS-01","category":"tools","description":"Empty edit search is rejected in bounded time"},
+  {"id":"TOOLS-02","category":"tools","description":"Workspace traversal is rejected"},
+  {"id":"TOOLS-03","category":"tools","description":"Protected secret reads are rejected"},
+  {"id":"TOOLS-04","category":"tools","description":"Symlink recursion is skipped"},
+  {"id":"TOOLS-05","category":"tools","description":"Normal write remains inside workspace"},
+  {"id":"SESSION-01","category":"session","description":"Session directory is private"},
+  {"id":"SESSION-02","category":"session","description":"Session file is private"},
+  {"id":"SESSION-03","category":"session","description":"Common credentials are redacted"},
+  {"id":"APPROVAL-01","category":"approval","description":"Create preview shows proposed content"},
+  {"id":"APPROVAL-02","category":"approval","description":"Overwrite preview shows old and new content"},
+  {"id":"APPROVAL-03","category":"approval","description":"Binary proposal fails closed"},
+  {"id":"CONTEXT-01","category":"context","description":"ASCII history has bounded estimate"},
+  {"id":"CONTEXT-02","category":"context","description":"Non-English history is not undercounted as ASCII"},
+  {"id":"SAFETY-01","category":"safety","description":"Canonical destructive command produces warning"},
+  {"id":"RELIABILITY-01","category":"reliability","description":"Timed-out process tree is terminated"},
+  {"id":"SAFETY-02","category":"safety","description":"Sandbox failure never falls back to host execution"}
+]

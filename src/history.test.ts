@@ -38,9 +38,10 @@ function hasOrphanedToolMessage(messages: any[]): boolean {
 }
 
 describe('estTokens', () => {
-  it('estimates roughly chars/4 plus overhead', () => {
-    expect(estTokens({ content: '' })).toBe(4);
-    expect(estTokens({ content: 'x'.repeat(400) })).toBe(104);
+  it('estimates UTF-8 bytes conservatively plus message overhead', () => {
+    expect(estTokens({ content: '' })).toBe(6);
+    expect(estTokens({ content: 'x'.repeat(400) })).toBe(106);
+    expect(estTokens({ content: '漢'.repeat(100) })).toBeGreaterThan(estTokens({ content: 'x'.repeat(100) }));
   });
 
   it('counts serialized tool_calls toward the estimate', () => {

@@ -1,0 +1,6 @@
+{
+  "status": "blocked",
+  "profiles": ["venice", "ollama"],
+  "reason": "Must be run locally with credentials/endpoints supplied through the environment; no live credentials were available during this revision.",
+  "command": "npm run eval:live -- --profile <venice|ollama>"
+}

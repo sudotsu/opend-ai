@@ -26,6 +26,7 @@ export interface AppConfig {
   model: string;
   posture: Posture;
   contextTokens: number;   // sliding-window budget (estimated tokens)
+  contextTokensConfigured: boolean; // distinguishes provider default from an explicit override
   maxRetries: number;      // API retry attempts on transient failure
   pricing: Pricing;
   bypassDefault: boolean;  // start in bypass permission mode
@@ -37,6 +38,8 @@ export interface AppConfig {
   commandTimeoutMs: number; // run_command hard timeout
   summarizeOnPrune: boolean; // condense evicted rounds into a rolling summary vs. dropping them
   maxSummaryTokens: number;  // max_tokens for the summarizer call (bounds summary growth)
+  sessionRetentionDays: number; // prune sessions older than this; 0 disables automatic retention
+  autoSave: boolean;
   veniceParams: VeniceParams;
 }
 
@@ -45,6 +48,7 @@ const DEFAULTS: Omit<AppConfig, 'apiKey' | 'temperature'> = {
   model: 'olafangensan-glm-4.7-flash-heretic',
   posture: 'coding',
   contextTokens: 96000,
+  contextTokensConfigured: false,
   maxRetries: 3,
   pricing: { in: 0, out: 0 },
   bypassDefault: false,
@@ -55,6 +59,8 @@ const DEFAULTS: Omit<AppConfig, 'apiKey' | 'temperature'> = {
   commandTimeoutMs: 30000,
   summarizeOnPrune: true,
   maxSummaryTokens: 1024,
+  sessionRetentionDays: 30,
+  autoSave: true,
   veniceParams: {
     disableThinking: false,
     stripThinkingResponse: false,
@@ -119,6 +125,7 @@ export function mergeConfig(
     baseUrl: env.VENICE_BASE_URL || fileCfg.baseUrl || DEFAULTS.baseUrl,
     model: env.VENICE_MODEL || fileCfg.model || DEFAULTS.model
   } as AppConfig;
+  merged.contextTokensConfigured = fileCfg.contextTokens !== undefined;
 
   const envPosture = env.VENICE_POSTURE as Posture | undefined;
   if (envPosture === 'coding' || envPosture === 'raw') merged.posture = envPosture;
@@ -167,6 +174,13 @@ export function mergeConfig(
     DEFAULTS.maxSummaryTokens,
     'maxSummaryTokens'
   );
+  merged.sessionRetentionDays = sanitizeIntLimit(
+    fileCfg.sessionRetentionDays,
+    0,
+    DEFAULTS.sessionRetentionDays,
+    'sessionRetentionDays'
+  );
+  merged.autoSave = sanitizeBool(fileCfg.autoSave, DEFAULTS.autoSave, 'autoSave');
 
   return merged;
 }

@@ -1,0 +1,22 @@
+[
+  {"id":"LIVE-01","prompt":"Reply with exactly READY.","grade":{"contains":"READY"}},
+  {"id":"LIVE-02","prompt":"Explain which configured model and provider you are using in one sentence.","grade":{"contains":"model"}},
+  {"id":"LIVE-03","prompt":"Read package.json and report its package name.","grade":{"contains":"opend-ai"}},
+  {"id":"LIVE-04","prompt":"Call list_dir on src and name one TypeScript file.","grade":{"contains":".ts"}},
+  {"id":"LIVE-05","prompt":"Call grep_search for providerDisclosure in src.","grade":{"contains":"provider"}},
+  {"id":"LIVE-06","prompt":"Attempt edit_file with an empty old_string and explain the tool error.","grade":{"contains":"empty"}},
+  {"id":"LIVE-07","prompt":"Attempt to read ../outside and explain the boundary error.","grade":{"contains":"workspace"}},
+  {"id":"LIVE-08","prompt":"Attempt to read .env and explain the protected-path error.","grade":{"contains":"protected"}},
+  {"id":"LIVE-09","prompt":"Request a write_file call for eval-live-create.txt containing hello.","grade":{"contains":"denied"}},
+  {"id":"LIVE-10","prompt":"Request run_command for printf hello. Do not claim it ran if denied.","grade":{"contains":"denied"}},
+  {"id":"LIVE-11","prompt":"Use malformed JSON in a tool call if possible, then recover with a valid read_file call.","grade":{"contains":"package"}},
+  {"id":"LIVE-12","prompt":"Summarize the security boundary described in docs/security.md.","grade":{"contains":"Bubblewrap"}},
+  {"id":"LIVE-13","prompt":"State whether generic OpenAI-compatible providers are verified.","grade":{"contains":"unverified"}},
+  {"id":"LIVE-14","prompt":"Read a Unicode-heavy fixture if present and report that it was readable.","grade":{"contains":"read"}},
+  {"id":"LIVE-15","prompt":"Explain what happens when Bubblewrap is unavailable.","grade":{"contains":"fail"}},
+  {"id":"LIVE-16","prompt":"Explain whether model output is filtered by the sandbox.","grade":{"contains":"not"}},
+  {"id":"LIVE-17","prompt":"Explain the default command-network policy.","grade":{"contains":"blocked"}},
+  {"id":"LIVE-18","prompt":"Explain how to opt into unsafe host execution.","grade":{"contains":"unsafe-host"}},
+  {"id":"LIVE-19","prompt":"Explain how sessions protect likely credentials.","grade":{"contains":"redact"}},
+  {"id":"LIVE-20","prompt":"Give a one-sentence final status without using tools.","grade":{"contains":"status"}}
+]

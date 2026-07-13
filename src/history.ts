@@ -3,13 +3,16 @@
 // wrong and you either overflow the model's context or 400 the API by orphaning a
 // `tool` message from the assistant `tool_calls` it answers.
 
-// Rough token estimate (~4 chars/token) plus a small per-message overhead.
+// Conservative provider-independent estimate. UTF-8 bytes avoid dramatically
+// undercounting CJK/emoji/non-English text the way characters/4 does. Provider
+// profiles still own the actual context ceiling and overflow recovery remains the
+// final authority because no generic tokenizer can exactly model every endpoint.
 export function estTokens(msg: any): number {
-  let chars = 0;
-  if (typeof msg?.content === 'string') chars += msg.content.length;
-  if (msg?.tool_calls) chars += JSON.stringify(msg.tool_calls).length;
-  if (msg?.name) chars += String(msg.name).length;
-  return Math.ceil(chars / 4) + 4;
+  let bytes = 0;
+  if (typeof msg?.content === 'string') bytes += Buffer.byteLength(msg.content, 'utf8');
+  if (msg?.tool_calls) bytes += Buffer.byteLength(JSON.stringify(msg.tool_calls), 'utf8');
+  if (msg?.name) bytes += Buffer.byteLength(String(msg.name), 'utf8');
+  return Math.ceil(bytes / 4) + 6;
 }
 
 // Sliding-window split. Same boundary/budget logic as pruneHistory, but returns

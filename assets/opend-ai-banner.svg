@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400" role="img" aria-labelledby="title desc">
+  <title id="title">opend-ai</title>
+  <desc id="desc">Uncensored, inspectable CLI coding agent with explicit workspace authority.</desc>
+  <rect width="1200" height="400" fill="#070807"/>
+  <rect x="18" y="18" width="1164" height="364" rx="12" fill="none" stroke="#6f511b"/>
+  <g fill="#f4bd50" font-family="ui-monospace, SFMono-Regular, Consolas, monospace">
+    <text x="64" y="132" font-size="66" font-weight="700">&gt;_ opend-ai</text>
+    <text x="68" y="184" font-size="23" fill="#e7d2a3">uncensored · inspectable · workspace-scoped</text>
+    <text x="68" y="240" font-size="18">streams reasoning  •  previews edits  •  isolates commands</text>
+  </g>
+  <line x1="68" y1="275" x2="1132" y2="275" stroke="#6f511b"/>
+  <g font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="16">
+    <text x="68" y="327" fill="#8fe388">MODEL OUTPUT</text>
+    <text x="208" y="327" fill="#d6c7a5">uncensored</text>
+    <text x="438" y="327" fill="#8fe388">TOOL AUTHORITY</text>
+    <text x="594" y="327" fill="#d6c7a5">explicit</text>
+    <text x="785" y="327" fill="#8fe388">DEFAULT NETWORK</text>
+    <text x="954" y="327" fill="#d6c7a5">blocked</text>
+  </g>
+</svg>

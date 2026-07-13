@@ -309,3 +309,61 @@ describe('summarize-on-prune integration', () => {
     );
   });
 });
+
+describe('provider identity and recovery', () => {
+  it('constructs the system prompt from the configured model and provider', () => {
+    const agent = new VeniceAgent({ apiKey: '', baseUrl: 'http://127.0.0.1:11434/v1', model: 'local-test-model' });
+    const prompt = agent.getHistory()[0].content;
+    expect(prompt).toContain('local-test-model');
+    expect(prompt).toContain('Ollama');
+    expect(prompt).not.toContain('GLM 4.7 Flash Heretic');
+  });
+
+  it('reduces the provider context budget and retries once on an overflow response', async () => {
+    const notices: string[] = [];
+    const agent = new VeniceAgent({ apiKey: 'x', contextTokens: 8000, summarizeOnPrune: false, onNotice: (message) => notices.push(message) });
+    let calls = 0;
+    (agent as any).runRound = async () => {
+      calls++;
+      if (calls === 1) throw Object.assign(new Error('maximum context length exceeded'), { status: 400 });
+      return { content: 'recovered', assembledToolCalls: [], aborted: false };
+    };
+    await expect(agent.chat('hello')).resolves.toBe('recovered');
+    expect(calls).toBe(2);
+    expect(notices.some((message) => message.includes('reducing budget'))).toBe(true);
+  });
+
+  it('returns invalid tool arguments to the model without performing I/O', async () => {
+    const results: string[] = [];
+    const agent = new VeniceAgent({ apiKey: 'x', onToolEnd: (_name, result) => results.push(result) });
+    let calls = 0;
+    (agent as any).runRound = async () => {
+      calls++;
+      if (calls === 1) return {
+        content: '', aborted: false,
+        assembledToolCalls: [{ id: 'bad', type: 'function', function: { name: 'edit_file', arguments: '{"path":"a","old_string":"","new_string":"x"}' } }]
+      };
+      return { content: 'done', assembledToolCalls: [], aborted: false };
+    };
+    await expect(agent.chat('test')).resolves.toBe('done');
+    expect(results[0]).toMatch(/invalid arguments.*must not be empty/);
+  });
+
+  it('retries transient provider failures but not authentication failures', async () => {
+    const agent = new VeniceAgent({ apiKey: 'x', maxRetries: 1 });
+    let transientCalls = 0;
+    (agent as any).streamOnce = async () => {
+      transientCalls++;
+      if (transientCalls === 1) throw Object.assign(new Error('busy'), { status: 429 });
+      return { content: 'ok', assembledToolCalls: [], aborted: false };
+    };
+    await expect((agent as any).runRound()).resolves.toMatchObject({ content: 'ok' });
+    expect(transientCalls).toBe(2);
+
+    const authAgent = new VeniceAgent({ apiKey: 'x', maxRetries: 3 });
+    let authCalls = 0;
+    (authAgent as any).streamOnce = async () => { authCalls++; throw Object.assign(new Error('unauthorized'), { status: 401 }); };
+    await expect((authAgent as any).runRound()).rejects.toThrow(/unauthorized/);
+    expect(authCalls).toBe(1);
+  });
+});

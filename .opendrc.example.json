@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy this file to ~/.veniceagentrc.json (applies everywhere) or ./.veniceagentrc.json in a project (overrides the home config there). VENICE_API_KEY/VENICE_MODEL/VENICE_POSTURE env vars always win over both files.",
+  "_comment": "Copy this file to ~/.opendrc.json (applies everywhere) or ./.opendrc.json in a project (overrides the home config there). Legacy .veniceagentrc.json files are read only as a migration fallback. VENICE_API_KEY/VENICE_MODEL/VENICE_POSTURE env vars always win.",
 
   "model": "olafangensan-glm-4.7-flash-heretic",
 
@@ -19,7 +19,7 @@
   "_pricing_comment": "USD per 1,000,000 tokens (in = prompt, out = completion). Leave at 0/0 to show token counts without a dollar cost — the heretic model's real pricing isn't hardcoded here.",
 
   "bypassDefault": false,
-  "_bypassDefault_comment": "Start in bypass permission mode (auto-approve edits/commands). Catastrophic commands (rm -rf /, mkfs, etc.) always confirm regardless of this setting.",
+  "_bypassDefault_comment": "Start in bypass permission mode (auto-approve edits/commands inside the active boundary). Warning patterns still confirm, but regexes are not the security boundary.",
 
   "showUsagePerTurn": false,
   "_showUsagePerTurn_comment": "Print a token-usage line after every turn, in addition to the /usage command.",
@@ -43,6 +43,12 @@
 
   "maxSummaryTokens": 1024,
   "_maxSummaryTokens_comment": "max_tokens for the summarizer call. Bounds how large the rolling summary can grow (kept well under provider ceilings).",
+
+  "sessionRetentionDays": 30,
+  "_sessionRetentionDays_comment": "Delete session files older than this many days at startup. Set 0 to disable automatic retention.",
+
+  "autoSave": true,
+  "_autoSave_comment": "Auto-save non-empty interactive sessions on exit. Session files use restrictive permissions and common credential redaction.",
 
   "veniceParams": {
     "disableThinking": false,

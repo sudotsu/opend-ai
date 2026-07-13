@@ -1,17 +1,15 @@
 import fs from 'fs';
 import path from 'path';
-import { resolvePath } from './tools.js';
+import os from 'os';
 
-const DEFAULT_SESSION_DIR = resolvePath('~/.opend/sessions');
-// Legacy location from when the tool was named "venice-agent". Still read (so old
-// sessions remain visible/loadable) but never written to. New saves go to ~/.opend.
-const LEGACY_SESSION_DIR = resolvePath('~/.venice-agent/sessions');
+const DEFAULT_SESSION_DIR = path.join(os.homedir(), '.opend', 'sessions');
+const LEGACY_SESSION_DIR = path.join(os.homedir(), '.venice-agent', 'sessions');
 
 export interface SessionData {
   model: string;
   posture?: string;
   messages: any[];
-  summary?: string; // rolling condensed memory of pruned turns (absent in older saves)
+  summary?: string;
   savedAt: string;
 }
 
@@ -21,7 +19,6 @@ export interface SessionSummary {
   messages: number;
 }
 
-// Keep filenames safe: sessions are named by the user (or a timestamp).
 function sanitize(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
@@ -30,59 +27,86 @@ function sessionPath(dir: string, name: string): string {
   return path.join(dir, sanitize(name) + '.json');
 }
 
-// `dir` defaults to `~/.opend/sessions`; overridable for unit tests so they
-// don't touch the real filesystem or $HOME.
+export function redactSecrets(text: string): string {
+  return text
+    .replace(/\b(sk-[a-zA-Z0-9_-]{12,})\b/g, '[REDACTED_API_KEY]')
+    .replace(/\b(Bearer\s+)[a-zA-Z0-9._~+\/-]{12,}/gi, '$1[REDACTED]')
+    .replace(/\b(api[_-]?key|access[_-]?token|secret|password)\s*([:=])\s*([^\s,"'}]{6,})/gi, '$1$2[REDACTED]');
+}
+
+function redactValue(value: any): any {
+  if (typeof value === 'string') return redactSecrets(value);
+  if (Array.isArray(value)) return value.map(redactValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redactValue(item)]));
+  }
+  return value;
+}
+
+function secureDir(dir: string): void {
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  if (process.platform !== 'win32') fs.chmodSync(dir, 0o700);
+}
+
 export function saveSession(
   name: string,
   data: Omit<SessionData, 'savedAt'>,
   dir: string = DEFAULT_SESSION_DIR
 ): string {
-  fs.mkdirSync(dir, { recursive: true });
-  const full: SessionData = { ...data, savedAt: new Date().toISOString() };
-  const p = sessionPath(dir, name);
-  fs.writeFileSync(p, JSON.stringify(full, null, 2), 'utf-8');
-  return p;
+  secureDir(dir);
+  const full: SessionData = redactValue({ ...data, savedAt: new Date().toISOString() });
+  const target = sessionPath(dir, name);
+  fs.writeFileSync(target, JSON.stringify(full, null, 2), { encoding: 'utf-8', mode: 0o600 });
+  if (process.platform !== 'win32') fs.chmodSync(target, 0o600);
+  return target;
 }
 
 export function loadSession(name: string, dir: string = DEFAULT_SESSION_DIR): SessionData {
-  let p = sessionPath(dir, name);
-  // Fall back to the legacy ~/.venice-agent location for the default dir only, so a
-  // session saved under the old name still loads. Tests pass an explicit dir → no fallback.
-  if (!fs.existsSync(p) && dir === DEFAULT_SESSION_DIR) {
+  let target = sessionPath(dir, name);
+  if (!fs.existsSync(target) && dir === DEFAULT_SESSION_DIR) {
     const legacy = sessionPath(LEGACY_SESSION_DIR, name);
-    if (fs.existsSync(legacy)) p = legacy;
+    if (fs.existsSync(legacy)) target = legacy;
   }
-  if (!fs.existsSync(p)) {
-    throw new Error(`No saved session named "${name}" (looked in ${dir}).`);
-  }
-  return JSON.parse(fs.readFileSync(p, 'utf-8'));
+  if (!fs.existsSync(target)) throw new Error(`No saved session named "${name}" (looked in ${dir}).`);
+  return JSON.parse(fs.readFileSync(target, 'utf-8'));
 }
 
 function readSessionDir(dir: string): SessionSummary[] {
   if (!fs.existsSync(dir)) return [];
-  return fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith('.json'))
-    .map((f) => {
-      const name = f.replace(/\.json$/, '');
-      try {
-        const d = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8'));
-        return { name, savedAt: d.savedAt || '?', messages: (d.messages || []).length };
-      } catch {
-        return { name, savedAt: '?', messages: 0 };
-      }
-    });
+  return fs.readdirSync(dir).filter((file) => file.endsWith('.json')).map((file) => {
+    const name = file.replace(/\.json$/, '');
+    try {
+      const data = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8'));
+      return { name, savedAt: data.savedAt || '?', messages: (data.messages || []).length };
+    } catch {
+      return { name, savedAt: '?', messages: 0 };
+    }
+  });
 }
 
 export function listSessions(dir: string = DEFAULT_SESSION_DIR): SessionSummary[] {
-  // For the default dir, also surface legacy ~/.venice-agent sessions. A name present
-  // in both wins from the new location (listed first). Explicit dir → that dir only.
   const dirs = dir === DEFAULT_SESSION_DIR ? [DEFAULT_SESSION_DIR, LEGACY_SESSION_DIR] : [dir];
   const byName = new Map<string, SessionSummary>();
-  for (const d of dirs) {
-    for (const s of readSessionDir(d)) {
-      if (!byName.has(s.name)) byName.set(s.name, s);
-    }
+  for (const candidate of dirs) {
+    for (const session of readSessionDir(candidate)) if (!byName.has(session.name)) byName.set(session.name, session);
   }
   return [...byName.values()].sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+}
+
+export function deleteSession(name: string, dir: string = DEFAULT_SESSION_DIR): boolean {
+  const target = sessionPath(dir, name);
+  if (!fs.existsSync(target)) return false;
+  fs.rmSync(target);
+  return true;
+}
+
+export function pruneSessions(retentionDays: number, dir: string = DEFAULT_SESSION_DIR): number {
+  if (!Number.isInteger(retentionDays) || retentionDays <= 0 || !fs.existsSync(dir)) return 0;
+  const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+  let removed = 0;
+  for (const file of fs.readdirSync(dir).filter((item) => item.endsWith('.json'))) {
+    const target = path.join(dir, file);
+    if (fs.statSync(target).mtimeMs < cutoff) { fs.rmSync(target); removed++; }
+  }
+  return removed;
 }

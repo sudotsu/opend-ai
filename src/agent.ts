@@ -1,10 +1,12 @@
 import { OpenAI } from 'openai';
-import { readFile, writeFile, editFile, listDir, runCommand, grepSearch } from './tools.js';
+import { readFile, writeFile, editFile, listDir, runCommand, grepSearch, createToolPolicy, type ToolPolicy } from './tools.js';
 import { systemPromptFor, type Posture } from './prompts.js';
 import type { VeniceParams } from './config.js';
 import { pruneHistory, splitForPrune, estTokens } from './history.js';
 import { buildSummaryRequest, summaryMessage, SUMMARY_HEADER } from './summarize.js';
 import { splitThink } from './think.js';
+import { resolveProviderProfile, type ProviderProfile } from './provider.js';
+import { validateToolCall } from './tool-validation.js';
 
 export interface SummarizeResult {
   summary: string;
@@ -130,6 +132,7 @@ export interface AgentConfig {
   model?: string;
   posture?: Posture;
   contextTokens?: number;
+  contextTokensConfigured?: boolean;
   maxRetries?: number;
   pricing?: { in: number; out: number };
   temperature?: number;
@@ -138,6 +141,8 @@ export interface AgentConfig {
   summarizeOnPrune?: boolean;
   maxSummaryTokens?: number;
   veniceParams?: VeniceParams;
+  toolPolicy?: ToolPolicy;
+  onBeforeFileMutation?: (path: string) => void;
   // Injectable summarizer for tests; defaults to the real LLM-backed call.
   summarizer?: Summarizer;
   onThinking?: (text: string) => void;
@@ -150,7 +155,7 @@ export interface AgentConfig {
 
 export class VeniceAgent {
   private client: OpenAI;
-  private isVenice: boolean;
+  private provider: ProviderProfile;
   private model: string;
   private posture: Posture;
   private contextTokens: number;
@@ -172,17 +177,17 @@ export class VeniceAgent {
   private onToolEnd?: (name: string, result: string) => void;
   private onConfirm?: (name: string, args: any) => Promise<boolean>;
   private onNotice?: (message: string) => void;
+  private toolPolicy: ToolPolicy;
+  private onBeforeFileMutation?: (path: string) => void;
 
   constructor(config: AgentConfig) {
     const baseURL = config.baseUrl || 'https://api.venice.ai/api/v1';
-    this.client = new OpenAI({ apiKey: config.apiKey, baseURL });
-    // `venice_parameters` is a Venice-only request extension. Only send it when
-    // actually talking to Venice — a stricter OpenAI-compatible server (Ollama,
-    // Together, etc.) could reject an unknown field.
-    this.isVenice = baseURL.includes('venice.ai');
     this.model = config.model || 'olafangensan-glm-4.7-flash-heretic';
+    const contextOverride = config.contextTokensConfigured === false ? undefined : config.contextTokens;
+    this.provider = resolveProviderProfile(baseURL, this.model, contextOverride);
+    this.client = new OpenAI({ apiKey: config.apiKey || 'opend-local-no-key', baseURL: this.provider.baseUrl });
     this.posture = config.posture || 'coding';
-    this.contextTokens = config.contextTokens ?? 96000;
+    this.contextTokens = this.provider.contextTokens;
     this.maxRetries = config.maxRetries ?? 3;
     this.pricing = config.pricing ?? { in: 0, out: 0 };
     this.temperature = config.temperature;
@@ -220,8 +225,18 @@ export class VeniceAgent {
     this.onToolEnd = config.onToolEnd;
     this.onConfirm = config.onConfirm;
     this.onNotice = config.onNotice;
+    this.toolPolicy = config.toolPolicy ?? createToolPolicy({ timeoutMs: this.commandTimeoutMs });
+    this.onBeforeFileMutation = config.onBeforeFileMutation;
 
-    this.messages.push({ role: 'system', content: systemPromptFor(this.posture) });
+    this.messages.push({ role: 'system', content: this.systemPrompt() });
+  }
+
+  private systemPrompt(): string {
+    return systemPromptFor(this.posture, { model: this.model, provider: this.provider.label });
+  }
+
+  getProviderProfile(): ProviderProfile {
+    return this.provider;
   }
 
   getModel() {
@@ -240,9 +255,9 @@ export class VeniceAgent {
   setHistory(messages: any[]) {
     const arr = Array.isArray(messages) ? messages : [];
     if (arr.length === 0) {
-      this.messages = [{ role: 'system', content: systemPromptFor(this.posture) }];
+      this.messages = [{ role: 'system', content: this.systemPrompt() }];
     } else if (arr[0]?.role !== 'system') {
-      this.messages = [{ role: 'system', content: systemPromptFor(this.posture) }, ...arr];
+      this.messages = [{ role: 'system', content: this.systemPrompt() }, ...arr];
     } else {
       this.messages = arr;
     }
@@ -267,7 +282,7 @@ export class VeniceAgent {
   // Swap the system prompt in place without discarding the conversation.
   setPosture(posture: Posture) {
     this.posture = posture;
-    const sys = systemPromptFor(posture);
+    const sys = this.systemPrompt();
     if (this.messages[0]?.role === 'system') {
       this.messages[0] = { role: 'system', content: sys };
     } else {
@@ -289,7 +304,7 @@ export class VeniceAgent {
   }
 
   clearHistory() {
-    this.messages = [{ role: 'system', content: systemPromptFor(this.posture) }];
+    this.messages = [{ role: 'system', content: this.systemPrompt() }];
     this.summary = '';
   }
 
@@ -308,6 +323,11 @@ export class VeniceAgent {
     const status = err?.status;
     if (typeof status === 'number') return status === 429 || status >= 500;
     return true; // no HTTP status → network/connection error → worth a retry
+  }
+
+  private isContextOverflow(err: any): boolean {
+    const text = `${err?.message ?? ''} ${err?.error?.message ?? ''}`.toLowerCase();
+    return err?.status === 400 && /(context|token).*(length|window|maximum|limit|exceed|too long)/i.test(text);
   }
 
   // The messages actually sent to the model: the rolling summary (if any) is
@@ -357,7 +377,7 @@ export class VeniceAgent {
       tools: TOOLS,
       tool_choice: 'auto',
       stream: true,
-      stream_options: { include_usage: true }
+      ...(this.provider.includeStreamUsage ? { stream_options: { include_usage: true } } : {})
     };
     // Only send temperature when it's a finite number; omitting it lets the
     // provider apply its own default (coercing to 0 would silently change behavior).
@@ -368,7 +388,7 @@ export class VeniceAgent {
     }
     // `venice_parameters` is a Venice-only extension the OpenAI SDK types don't
     // know about — only attach it when talking to Venice (see constructor).
-    if (this.isVenice) {
+    if (this.provider.sendVeniceParameters) {
       body.venice_parameters = {
         disable_thinking: this.veniceParams.disableThinking,
         strip_thinking_response: this.veniceParams.stripThinkingResponse,
@@ -483,7 +503,7 @@ export class VeniceAgent {
       max_tokens: this.maxSummaryTokens,
       temperature: 0
     };
-    if (this.isVenice) {
+    if (this.provider.sendVeniceParameters) {
       body.venice_parameters = {
         disable_thinking: true,
         strip_thinking_response: true,
@@ -575,7 +595,15 @@ export class VeniceAgent {
         round = await this.runRound(signal);
       } catch (err: any) {
         if (this.isAbort(err)) return ''; // cancelled before any history commit
-        throw err;
+        if (this.isContextOverflow(err)) {
+          const previous = this.contextTokens;
+          this.contextTokens = Math.max(1024, Math.floor(this.contextTokens * 0.75));
+          this.onNotice?.(`provider rejected the context window; reducing budget from ${previous} to ${this.contextTokens} tokens and pruning again`);
+          await this.applyPruneAndSummarize(signal);
+          round = await this.runRound(signal);
+        } else {
+          throw err;
+        }
       }
 
       const { content, assembledToolCalls, aborted } = round;
@@ -607,6 +635,15 @@ export class VeniceAgent {
           continue;
         }
 
+        try {
+          args = validateToolCall(name, args).args;
+        } catch (err: any) {
+          const validationError = `Error: invalid arguments for ${name}: ${err.message}`;
+          this.onToolEnd?.(name, validationError);
+          this.messages.push({ role: 'tool', tool_call_id: tc.id, name, content: validationError });
+          continue;
+        }
+
         this.onToolStart?.(name, args);
 
         if (this.onConfirm && DESTRUCTIVE_TOOLS.has(name)) {
@@ -623,22 +660,24 @@ export class VeniceAgent {
         try {
           switch (name) {
             case 'read_file':
-              result = readFile(args.path, args.startLine, args.endLine);
+              result = readFile(args.path, args.startLine, args.endLine, this.toolPolicy);
               break;
             case 'write_file':
-              result = writeFile(args.path, args.content);
+              this.onBeforeFileMutation?.(args.path);
+              result = writeFile(args.path, args.content, this.toolPolicy);
               break;
             case 'edit_file':
-              result = editFile(args.path, args.old_string, args.new_string);
+              this.onBeforeFileMutation?.(args.path);
+              result = editFile(args.path, args.old_string, args.new_string, this.toolPolicy);
               break;
             case 'list_dir':
-              result = listDir(args.path);
+              result = listDir(args.path, this.toolPolicy);
               break;
             case 'run_command':
-              result = await runCommand(args.command, this.commandTimeoutMs);
+              result = await runCommand(args.command, this.toolPolicy);
               break;
             case 'grep_search':
-              result = grepSearch(args.pattern, args.path);
+              result = grepSearch(args.pattern, args.path, this.toolPolicy);
               break;
             default:
               result = 'Unknown tool: ' + name;
