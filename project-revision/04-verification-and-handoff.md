@@ -2,75 +2,64 @@
 
 **Revision status:** partial
 
-The complete approved repository implementation is committed on `agent/implement-validated-teardown` at remote implementation endpoint `29dba107f73342c3e8ed42b3244d78eefa862e18`, based on `359ae1241fddb0377cd604447d8fdd75e3109db9`. Partial status records external/live acceptance evidence still blocked by the approved credential and publication boundaries; it does not indicate omitted approved code.
+The immutable product-code endpoint for this artifact is `8fd09c23b81c6c59bfed6656ea0b8a7c427e57f2` on `agent/implement-validated-teardown`, based on the preserved PR head `c726227223ebb32ca80d36058deeeb9c83209d57`. This artifact is committed as a product-unchanged descendant. Partial status means specific acceptance evidence is still blocked or deferred; it is not a claim that every approved acceptance criterion is complete.
 
-## Checks
+PR #8 is public, open, and ready for review rather than draft. Publication of its existing README content was explicitly approved. No merge/close, deployment, migration, release/package publication, credential-backed live run, or production change is authorized or claimed.
 
-- Original teardown validator: passed.
-- `npm ci --cache /tmp/opend-ai-npm-cache`: passed; prepare/build passed.
-- `npm run build`: passed with TypeScript strict configuration.
-- `npm test`: 16 files, 159 tests passed.
-- `npm run test:cli`: help/version/usage-error/mock-exec/unsafe-warning smoke passed.
-- `npm run eval`: 20/20 deterministic cases passed with stored result.
-- `npm run check:release`: passed for 0.2.0.
-- `npm audit --omit=dev --json`: zero production vulnerabilities at check time.
-- `npm pack --dry-run --json`: passed; 27 intended package entries, 46,650-byte archive, 144,909 bytes unpacked.
+## Product-commit checks
+
+- `npm ci --cache /tmp/opend-ai-npm-cache`: passed; prepare/build passed; 92 packages audited.
+- `npm run build`: passed with the repository TypeScript configuration.
+- `npm test`: 16 files, 175 tests passed.
+- `npm run test:cli`: passed.
+- `npm run eval`: 20/20 deterministic cases passed. Generated timestamp/duration noise was not committed.
+- `npm run check:release`: passed.
+- `npm audit --omit=dev --audit-level=low --json --cache /tmp/opend-ai-npm-cache`: zero vulnerabilities; 43 production dependencies, 146 total dependencies.
+- `npm pack --dry-run --json --cache /tmp/opend-ai-npm-cache`: passed; 27 entries, 52,101-byte archive, 166,024 bytes unpacked.
 - `git diff --check`: passed.
-- Revision validator: passed.
-- GitHub Actions workflow run `29217420494`: Node 22/24 on Ubuntu/Windows all passed, including install, 159 tests, build, CLI smoke, release facts, and package dry-run; Ubuntu Node 24 also passed deterministic evals.
+- Original project-teardown validator: passed.
+- Project-revision validator: passed before this update and must pass again for the artifact-only commit.
+- No repository lint/static script exists. Changed TypeScript was manually inspected for the catch-parameter reassignment that prompted the review; the mutable state is now `overflowError`.
 
-## End-to-end and regression coverage
+The latest complete pre-convergence workflow was run `29240694231` at `c726227`; all Node 22/24 Ubuntu/Windows jobs passed. The final artifact-only PR head has not yet run at the time this immutable artifact is authored. Its actual workflow run belongs in the external PR description after CI completes, because a committed artifact cannot truthfully name a future run.
 
-The deterministic streamed OpenAI-compatible integration performs a real SDK request to a local SSE server, receives `read_file`, returns the tool result, and completes a second model round. CLI smoke runs the compiled bin with an isolated HOME and local no-key mock endpoint. Focused tests cover file approval previews, path/symlink policy, protected reads, process-tree timeout, sandbox no-fallback, session modes/redaction/retention/delete, checkpoint restore, provider identity/profile parsing, malformed tool arguments, retry classification, Unicode/context estimates, and provider-overflow recovery.
+## Convergence coverage
 
-## Blocked or unverified evidence
+- Trusted configuration loading expands `~` from the real home directory and resolves project config against the intended working directory. Filesystem tests exercise actual `loadConfig()` precedence and legacy fallback with isolated home/CWD directories.
+- Grep uses the linear-time `re2js` engine with case-insensitive ordinary-expression, ambiguous-alternation, and invalid/unsupported-pattern coverage. Existing protected-path, traversal, symlink-cycle, byte, and 100-result bounds remain.
+- Checkpoint restore stages checkpoint and recovery copies before replacement, restores original live contents after injected replacement failure, preserves exclusions, and retains/reports recovery data after injected rollback failure.
+- `editFile()` rejects oversized and non-regular targets before reading. Its existing slice-concatenation literal replacement and `$`-token regression test were verified and preserved.
+- Command environment construction is platform-testable, minimal, and uses platform paths/separators. Windows receives synthetic home/temp variables; native Windows sandbox execution remains fail-closed and unsafe-host remains explicit/warned.
+- Session pruning catches enumeration and per-entry failures, uses `lstat`, and ignores non-regular/broken/raced entries; startup has a final guard.
+- Approval previews reject null/binary content in `old_string` and `new_string` independently.
+- Context-overflow recovery retains repeated reductions, abort handling, notices, and minimum-budget behavior without reassigning a catch parameter.
 
-- Live Venice and Ollama harness results: blocked until the owner runs `npm run eval:live -- --profile <venice|ollama>` locally with normal environment credentials/endpoints.
-- SEC-002 / positive Bubblewrap workload: blocked. This environment is already nested in an outer Bubblewrap sandbox, so the inner functional preflight fails closed. Missing/unusable Bubblewrap behavior and lack of host fallback are verified; a normal WSL host must run the positive smoke before SEC-002 can be marked implemented.
-- REL-002 remainder: live provider SIGINT, prompt-injection fixtures, and Windows-specific runtime/session behavior remain unverified.
+## Blocked and deferred evidence
 
-## Baseline reconciliation
+- Live Venice/Ollama harness results remain blocked until run locally with normal environment credentials/endpoints. No credential was requested, stored, or fabricated.
+- SEC-002 positive Bubblewrap execution remains blocked. Bubblewrap `0.9.0` is present, but `bwrap --unshare-all --die-with-parent --ro-bind /usr /usr /usr/bin/true` exited 1 with `bwrap: open /proc/7/ns/ns failed: No such file or directory`. Missing/broken sandbox and native-Windows paths still fail closed and do not fall back to host execution, but that is not positive sandbox acceptance.
+- REL-002 remains blocked for the live-provider SIGINT, prompt-injection, and remaining full platform/runtime matrix. The two newly confirmed defects and platform-aware environment construction are implemented.
+- PROD-004 and SEC-006 remain deferred until their documented prerequisites are complete.
 
-The baseline tree was clean: no staged, unstaged, or untracked user work existed. Every final path is therefore attributable to an approved finding or the required revision record. `PLAN-render-updates.md` and `assets/opend-ai-animated-banner-smooth.gif` were explicitly compared to baseline and remain byte-for-byte unmodified. The original GIF was preserved; README/package now use the factual SVG. No reset, clean, checkout, stash, broad formatter, commit, push, or publication occurred.
+## Preservation and current-head revalidation
 
-The final working tree contains 18 modified tracked paths and 30 new paths. Generated `dist/` remains ignored. A diff secret-pattern review found only the documented placeholder and deliberate redaction-test fixtures; no credential was added.
+The original implementation baseline was clean. The convergence baseline at remote head `c726227` was also clean: no staged, unstaged, or untracked paths. Later branch work was fetched and preserved. `PLAN-render-updates.md` and `assets/opend-ai-animated-banner-smooth.gif` remain unchanged. Secret-pattern review found only placeholders and deliberate redaction fixtures; no credential was added.
+
+All unresolved inline threads and relevant outside-diff comments were inspected before editing. Of the current eight areas, every area was confirmed. The literal-replacement subfinding was already fixed by slice concatenation and an existing test, so it was documented rather than rewritten. Earlier comments for checkout credential persistence, CLI/live-eval deadlines, URL fallback, abortable commands, checkpoint containment/prompt handling, workspace validation, catastrophic exec approval, bounded reads/previews/diff, legacy session deletion, protected paths, sandbox HOME/no-fallback, and the Windows-specific no-fallback assertion were already fixed at `c726227` and were not duplicated.
 
 ## Changed-path mapping
 
-- Product/release facts (`README.md`, `CHANGELOG.md`, `.env.example`, `.opendrc.example.json`, `assets/opend-ai-banner.svg`, `docs/product-direction.md`, `scripts/check-release-facts.mjs`): PROD-001, PROD-003, PROD-005, UX-003, UX-004, DOC-001, SEC-001.
-- Provider/context core (`src/provider.ts`, `src/prompts.ts`, `src/agent.ts`, `src/history.ts`, `src/config.ts` and tests): UX-002, TECH-002, TECH-003, TECH-004, REL-001.
-- Tool boundary/validation (`src/tools.ts`, `src/tool-validation.ts`, `src/denylist.ts` and tests): TECH-001, TECH-006, SEC-001, SEC-002, SEC-003, REL-002.
-- Approval/recovery/CLI (`src/preview.ts`, `src/checkpoint.ts`, `src/index.ts` and tests/smoke): UX-001, UX-005, UX-006, UX-007.
-- Sessions (`src/session.ts`, session/config tests, `docs/security.md`): SEC-004.
-- Evaluation/compatibility (`evals/**`, `scripts/run-*-evals.mjs`, `src/mock-provider.integration.test.ts`, `docs/provider-compatibility.md`): PROD-002, TECH-003, TECH-004, REL-001, REL-002.
-- Delivery (`package.json`, `package-lock.json`, `.github/workflows/ci.yml`, package docs/assets): TECH-005, DOC-002, DOC-001.
-- `project-revision/**`: required revision artifact covering all findings.
+- Convergence product commit: `package.json`, `package-lock.json`, `src/agent.ts`, `src/checkpoint.ts` and test, `src/config.ts` and test, `src/index.ts`, `src/preview.ts` and test, `src/session.ts` and test, `src/tools.ts` and test.
+- Finding mapping: SEC-001/SEC-002/SEC-003/REL-002 (regex, command environment, fail-closed tool boundary); UX-005 (rollback-safe checkpoints); SEC-004/UX-003 (session maintenance and trusted config loading); TECH-001 (bounded/literal edit); UX-001 (binary preview); TECH-004/REL-001 (overflow recovery).
+- `project-revision/**`: artifact-only descendant describing product commit `8fd09c23b81c6c59bfed6656ea0b8a7c427e57f2`.
 
-## Validator
+## Validators
 
-Command:
+Commands:
 
 ```text
+python3 /root/.codex/skills/remote-skills/skill-6a5358409a648191895849d2fc3a17d9/scripts/validate_teardown.py ../handoff/project-teardown
 python3 /root/.codex/skills/remote-skills/skill-6a53f6795ea08191bbfb8b4cf4f8647a/scripts/validate_revision.py ../handoff/project-teardown project-revision
 ```
 
-Result: `Project revision validation passed.`
-
-The implementation endpoint is committed remotely, branch `agent/implement-validated-teardown` is published, and draft PR #8 is open. No merge, deployment, migration, release/publication, credential-backed live run, or production change is authorized or claimed.
-
-## Draft PR review follow-up — 2026-07-13
-
-The 20 supplied inline/outside-diff/nitpick findings were revalidated against the current clean local branch baseline. All 20 were still valid and were fixed minimally; no requested finding was skipped. The follow-up working tree changes are not committed or published by this pass.
-
-Follow-up validation:
-
-- `npm test`: 16 files, 165 tests passed.
-- `npm run test:cli`: passed, including compiled help/version/usage/mock-provider/unsafe-warning flows.
-- `npm run eval`: 20/20 deterministic cases passed.
-- `npm run check:release`: passed.
-- `npm audit --omit=dev --json`: zero production vulnerabilities.
-- `npm pack --dry-run --json --cache /tmp/opend-ai-npm-cache`: passed; 27 entries, 47,333-byte archive, 148,218 bytes unpacked.
-- `git diff --check`: passed.
-- Original teardown validator: passed.
-
-The prior external verification limits are unchanged: live Venice/Ollama, positive Bubblewrap execution on a normal WSL host, and the remaining REL-002 platform/live-provider matrix are not claimed by this follow-up.
+Both validators pass locally. Review threads should be resolved only after the artifact descendant is pushed and the corresponding code/tests are visible on PR #8. Final merge readiness depends on the final Node 22/24 Ubuntu/Windows matrix and a last unresolved-thread review; this artifact does not pre-claim either result.

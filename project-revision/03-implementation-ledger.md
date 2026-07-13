@@ -18,7 +18,7 @@ Approved, confirmed, implemented (sequence 4). `src/preview.ts` labels create/ov
 
 ## SEC-001 — The catastrophic-command safety floor is bypassable
 
-Approved, confirmed, implemented (sequence 5). Documentation and code now call regexes defense-in-depth warnings; the workspace/Bubblewrap policy is the boundary. Bypass strings cannot trigger host fallback under the default profile.
+Approved, confirmed, implemented (sequence 5). Documentation and code now call regexes defense-in-depth warnings; the workspace/Bubblewrap policy is the boundary. Grep patterns execute through the linear-time `re2js` engine rather than native synchronous `RegExp`, including coverage for ambiguous alternation. Bypass strings cannot trigger host fallback under the default profile.
 
 ## UX-002 — Clean local-provider onboarding is blocked by a Venice key gate
 
@@ -38,7 +38,7 @@ Approved, confirmed, implemented (sequence 9). Reads cannot leave the workspace,
 
 ## SEC-004 — Sessions persist sensitive transcripts without explicit protection
 
-Approved, confirmed, implemented (sequence 10). Session directories/files use 0700/0600 where supported, common credential patterns are redacted, 30-day retention is configurable, and named deletion is exposed with accurate media-erasure limits.
+Approved, confirmed, implemented (sequence 10). Session directories/files use 0700/0600 where supported, common credential patterns are redacted, 30-day retention is configurable, and named deletion is exposed with accurate media-erasure limits. Startup pruning is best-effort across enumeration, broken symlinks, races, inspection failures, and individual removal failures.
 
 ## TECH-006 — Tool arguments are trusted as untyped runtime data
 
@@ -46,11 +46,11 @@ Approved, confirmed, implemented (sequence 11). Every tool has explicit runtime 
 
 ## REL-002 — Several containment paths need specialized runtime testing
 
-Approved, changed, blocked (sequence 12). The two newly confirmed defects are fixed: process-group timeout termination and symlink-cycle avoidance. Linux tests pass, but the original cross-platform live-SIGINT and prompt-injection/platform matrix remains incomplete.
+Approved, changed, blocked (sequence 12). The two newly confirmed defects are fixed: process-group timeout termination and symlink-cycle avoidance. Command environments now have a platform-testable seam and Windows-specific minimal HOME/TEMP/TMP/PATH construction while native Windows sandbox execution remains fail-closed. The original live-SIGINT, prompt-injection, and full platform matrix remains incomplete.
 
 ## TECH-005 — Release gates do not exercise the shipped product matrix
 
-Approved, confirmed, implemented (sequence 13). CI targets Node 22/24 on Linux/Windows with install, tests, build, CLI smoke, fact check, package smoke, deterministic evals, and artifacts. All four jobs passed on draft PR #8, workflow run 29217420494.
+Approved, confirmed, implemented (sequence 13). CI targets Node 22/24 on Linux/Windows with install, tests, build, CLI smoke, fact check, package smoke, deterministic evals, and artifacts. All four jobs passed at pre-convergence head `c726227` in workflow run `29240694231`; the artifact-only final head is intended to run the same matrix after publication.
 
 ## TECH-003 — “Any OpenAI-compatible endpoint” is not a defined compatibility contract
 
@@ -58,15 +58,15 @@ Approved, confirmed, blocked (sequence 14). Exact-host provider profiles, conser
 
 ## TECH-004 — Token budgeting cannot guarantee provider context fit
 
-Approved, confirmed, implemented (sequence 15). Provider-specific default context budgets, explicit overrides, UTF-8-aware estimation, code/non-English/tool-history tests, and 400-context-overflow budget reduction/retry are implemented and pass.
+Approved, confirmed, implemented (sequence 15). Provider-specific default context budgets, explicit overrides, UTF-8-aware estimation, code/non-English/tool-history tests, and repeated abort-safe 400-context-overflow budget reduction/retry are implemented and pass. Retry state no longer reassigns a catch parameter.
 
 ## DOC-002 — Supported Node and package metadata are obsolete or incomplete
 
-Approved, confirmed, implemented (sequence 16). Node 22/24 engines, package manager, repository, bugs, homepage, README, and CI matrix are aligned. All four Node 22/24 Linux/Windows jobs passed on draft PR #8.
+Approved, confirmed, implemented (sequence 16). Node 22/24 engines, package manager, repository, bugs, homepage, README, and CI matrix are aligned. All four Node 22/24 Linux/Windows jobs passed at pre-convergence head `c726227`; final-head CI is recorded externally in the PR after this artifact is committed.
 
 ## UX-003 — Config examples still instruct legacy filenames
 
-Approved, confirmed, implemented (sequence 17). Primary examples use `.opendrc.json`; legacy names remain only in explicit migration/fallback text. Release fact check passes.
+Approved, confirmed, implemented (sequence 17). Primary examples use `.opendrc.json`; legacy names remain only in explicit migration/fallback text. Trusted configuration loading now expands home paths with the real user home and resolves project files against the intended working directory without weakening model file-tool boundaries. Filesystem-level precedence/fallback tests pass.
 
 ## UX-004 — The animated banner presents stale and overbroad product facts
 
@@ -78,7 +78,7 @@ Approved, confirmed, implemented (sequence 19). Current contradictions were reco
 
 ## UX-005 — Users lack scope visibility, diff review, and recovery
 
-Approved, confirmed, implemented (sequence 20). The banner shows workspace/boundary/provider; `/diff` includes staged, unstaged, and bounded untracked previews; automatic/manual checkpoints and explicit `/undo` restore pre-task state. Tests pass.
+Approved, confirmed, implemented (sequence 20). The banner shows workspace/boundary/provider; `/diff` includes staged, unstaged, and bounded untracked previews; automatic/manual checkpoints and explicit `/undo` restore pre-task state. Restore now retains a recovery copy until replacement succeeds, rolls back destination-copy failures, and reports a retained recovery path if rollback itself fails. Fault-injection tests prove both paths.
 
 ## UX-006 — The CLI has no non-interactive or standard flag interface
 
@@ -106,7 +106,7 @@ Approved, confirmed, retained (sequence 26). Existing theme, streamed reasoning 
 
 ## TECH-008 — Small modular architecture and focused tests are strong foundations
 
-Approved, confirmed, retained (sequence 27). New policy, provider, preview, validation, checkpoint, and session concerns are separate focused modules. The suite grew from 136 to 159 passing tests without adding a framework.
+Approved, confirmed, retained (sequence 27). New policy, provider, preview, validation, checkpoint, and session concerns are separate focused modules. The suite grew from 136 to 175 passing tests without adding a framework.
 
 ## REL-001 — Existing retry, cancellation, history, and autosave controls are thoughtful
 
@@ -114,7 +114,7 @@ Approved, confirmed, retained (sequence 28). Existing controls remain green; tra
 
 ## Draft PR inline-review revalidation — 2026-07-13
 
-All 20 requested follow-up findings were revalidated against the current branch before editing. All remained confirmed; none were stale, already satisfied, or skipped. Minimal fixes were applied to the existing finding scopes:
+All 20 requested follow-up findings were revalidated against the then-current branch before editing. Minimal fixes were applied to the still-valid scopes; later convergence revalidation separately distinguishes already-fixed leads from new work:
 
 - TECH-005/DOC-002: checkout credentials no longer persist, and CLI smoke children have bounded timeout/error settlement.
 - PROD-002/TECH-003: live cases have a configurable deadline and invalid base URLs no longer prevent failure-report writing.
@@ -127,3 +127,9 @@ All 20 requested follow-up findings were revalidated against the current branch 
 - DOC-001: README configuration terminology now consistently says “warning patterns.”
 
 Focused regression coverage was added for the affected tool, checkpoint, preview, and overflow paths. Live Venice/Ollama and positive Bubblewrap execution remain blocked exactly as previously recorded.
+
+## PR #8 merge-readiness convergence — 2026-07-13
+
+The eight current-head areas listed in the revalidation record were fixed in immutable product commit `8fd09c23b81c6c59bfed6656ea0b8a7c427e57f2`. `re2js` was added intentionally for linear-time grep patterns. Checkpoint replacement now has recovery/rollback fault injection. Edit reads are regular-file and byte bounded while the already-literal replacement implementation remains unchanged. Windows unsafe-host environments are minimally constructed with platform separators and synthetic home/temp variables; secure native Windows execution still fails closed. Session pruning cannot abort startup, edit previews reject binary old/new operands independently, configuration files use a trusted application resolver, and context-overflow retry state is explicit.
+
+Local convergence verification passed with 16 files/175 tests. The exact positive Bubblewrap probe `bwrap --unshare-all --die-with-parent --ro-bind /usr /usr /usr/bin/true` failed with `bwrap: open /proc/7/ns/ns failed: No such file or directory`; SEC-002 therefore remains blocked rather than accepted.

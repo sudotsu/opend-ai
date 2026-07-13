@@ -8,3 +8,10 @@
 6. Retain PROD-004 and SEC-006 as explicit deferrals; neither may be prototyped before its prerequisites.
 
 This corrects the teardown DAG by moving TECH-006 into the shared safety foundation and by treating REL-002's two reproduced failures as implementation work. Focused tests run after each batch. Stop if the secure profile would silently fall back to host execution, if an edit overlaps user work not present in the baseline, or if a prerequisite cannot be made safe.
+
+## Convergence order
+
+1. Repair trusted configuration resolution, replace native grep regex matching with a linear-time engine, and make checkpoint replacement rollback-safe.
+2. Bound edits before reads, make unsafe-host environments platform-aware without inheriting arbitrary secrets, make session pruning best-effort, reject binary edit operands in previews, and remove catch-parameter reassignment.
+3. Run focused and complete local gates, record the immutable product commit, then update and validate this artifact in an artifact-only descendant.
+4. Push without merging, resolve only verified review threads, run the final PR matrix, and update the PR description with external final-head evidence.

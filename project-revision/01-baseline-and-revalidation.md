@@ -17,6 +17,14 @@ Current probes also reconfirmed the empty-edit hang, local-provider Venice-key g
 
 The teardown remains provisional. Live Venice/Ollama behavior, native Windows execution, Node 22, and live provider cancellation/context behavior cannot be claimed verified in this environment.
 
+## PR #8 convergence revalidation — 2026-07-13
+
+The remote review branch was fetched at `c726227223ebb32ca80d36058deeeb9c83209d57`. Its tree was clean locally, and the staged, unstaged, and untracked sets were empty before convergence. Nineteen inline review threads were inspected: fifteen were already resolved and four were unresolved. Relevant outside-diff comments were also re-read.
+
+Eight convergence areas remained valid: trusted home/project configuration path resolution, native synchronous grep regex execution, checkpoint replacement rollback, pre-read edit bounds, platform-aware command environments, best-effort session pruning, binary `old_string` preview rejection, and catch-parameter reassignment in context-overflow recovery. The requested literal-replacement subfinding was already fixed: `editFile()` used slice concatenation rather than `String.replace`, and an existing regression test covered `$&`, `$$`, ``$` ``, and `$'`. It was therefore verified and preserved without a redundant rewrite.
+
+Earlier review leads for bounded `/diff`, non-persisted checkout credentials, CLI smoke timeout settlement, live-eval timeouts/report fallback, abortable commands, protected `.git`/`.netrc`, checkpoint ID containment, prompt-loop checkpoint error handling, catastrophic exec approval, workspace validation, bounded reads/previews, legacy session deletion, and sandbox no-host-fallback were already present at `c726227`; their tests or direct source evidence remained intact, so no duplicate changes were made.
+
 ## Finding-by-finding classification
 
 | Finding | Revalidation | Current evidence / divergence |

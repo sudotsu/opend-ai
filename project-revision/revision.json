@@ -4,9 +4,9 @@
   "teardown_path": "attached validated project-teardown",
   "teardown_audited_revision": "359ae1241fddb0377cd604447d8fdd75e3109db9",
   "implementation_start_revision": "359ae1241fddb0377cd604447d8fdd75e3109db9",
-  "implementation_end_revision": "29dba107f73342c3e8ed42b3244d78eefa862e18",
+  "implementation_end_revision": "8fd09c23b81c6c59bfed6656ea0b8a7c427e57f2",
   "revision_status": "partial",
-  "generated_at": "2026-07-13T02:30:00Z",
+  "generated_at": "2026-07-13T11:25:49Z",
   "existing_work_reconciled": true,
   "findings": [
     {
@@ -25,23 +25,23 @@
     },
     {
       "id": "TECH-001", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 3,
-      "reason": "Empty edit searches are rejected before the former non-advancing loop.",
+      "reason": "Empty edit searches are rejected, file type/size are checked before reading, and replacement text remains literal.",
       "files_changed": ["src/tools.ts", "src/tool-validation.ts", "src/tool-validation.test.ts", "src/tools.test.ts"],
-      "acceptance_results": [{"criterion": "Empty old_string returns a bounded error without mutation.", "status": "passed", "evidence": "Unit, agent integration, and deterministic eval checks pass."}],
+      "acceptance_results": [{"criterion": "Empty, oversized, or non-regular edit targets fail before mutation while replacement tokens remain literal.", "status": "passed", "evidence": "Unit tests cover the empty search, oversized/non-regular targets, and $&, $$, $`, and $' replacement text."}],
       "verification": ["npm test", "npm run eval"], "notes": ["Whitespace-only strings remain explicit valid exact-string searches."]
     },
     {
       "id": "UX-001", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 4,
       "reason": "Approvals now expose bounded proposed content and fail safely when preview is impossible.",
       "files_changed": ["src/preview.ts", "src/preview.test.ts", "src/index.ts"],
-      "acceptance_results": [{"criterion": "Every write/edit approval shows target, operation, and proposed change; large/binary cases fail safely.", "status": "passed", "evidence": "Preview tests cover create, overwrite, edit, and binary denial."}],
+      "acceptance_results": [{"criterion": "Every write/edit approval shows target, operation, and proposed change; large/binary cases fail safely.", "status": "passed", "evidence": "Preview tests cover create, overwrite, edit, bounded reads, and independent binary old_string/new_string denial."}],
       "verification": ["npm test", "npm run eval"], "notes": []
     },
     {
       "id": "SEC-001", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 5,
-      "reason": "Regex claims were corrected and an independent fail-closed boundary now contains effects.",
-      "files_changed": ["src/denylist.ts", "src/tools.ts", "README.md", "docs/security.md"],
-      "acceptance_results": [{"criterion": "No absolute blocklist claim remains and bypass cannot reach protected paths under the default profile.", "status": "passed", "evidence": "Release fact check passes; workspace escape and sandbox no-fallback tests pass."}],
+      "reason": "Regex claims were corrected, grep uses a linear-time engine, and an independent fail-closed boundary contains effects.",
+      "files_changed": ["src/denylist.ts", "src/tools.ts", "src/tools.test.ts", "package.json", "package-lock.json", "README.md", "docs/security.md"],
+      "acceptance_results": [{"criterion": "No absolute blocklist claim remains, grep avoids catastrophic native-regex backtracking, and bypass cannot reach protected paths under the default profile.", "status": "passed", "evidence": "re2js ambiguous-alternation/invalid-pattern tests, release fact check, workspace escape, and sandbox no-fallback tests pass."}],
       "verification": ["npm run check:release", "npm test", "npm run eval"], "notes": ["Regexes remain defense-in-depth warnings."]
     },
     {
@@ -63,7 +63,7 @@
       "reason": "The default policy and fail-closed behavior are implemented, but positive Bubblewrap execution remains unverified in this nested runner.",
       "files_changed": ["src/tools.ts", "src/tools.test.ts", "src/index.ts", "docs/security.md", "README.md"],
       "acceptance_results": [{"criterion": "Default cannot write outside workspace or access command network without policy transition.", "status": "blocked", "evidence": "Path-escape and no-host-fallback tests pass, but a positive Bubblewrap workload could not execute inside this already nested sandbox."}],
-      "verification": ["npm test", "npm run eval"], "notes": ["Positive nested Bubblewrap execution is unavailable in this runner; fail-closed behavior is verified."]
+      "verification": ["npm test", "npm run eval", "bwrap --unshare-all --die-with-parent --ro-bind /usr /usr /usr/bin/true (exit 1)"], "notes": ["Bubblewrap 0.9.0 failed with: bwrap: open /proc/7/ns/ns failed: No such file or directory. Fail-closed/no-host-fallback behavior is verified, but positive execution is not."]
     },
     {
       "id": "SEC-003", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 9,
@@ -74,9 +74,9 @@
     },
     {
       "id": "SEC-004", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 10,
-      "reason": "Session confidentiality, retention, redaction, and deletion controls were added.",
+      "reason": "Session confidentiality, retention, redaction, deletion, and best-effort startup maintenance controls were added.",
       "files_changed": ["src/session.ts", "src/session.test.ts", "src/config.ts", "src/config.test.ts", "src/index.ts", "docs/security.md"],
-      "acceptance_results": [{"criterion": "Sessions are least-privilege, retention configurable, and deletion supported.", "status": "passed", "evidence": "0700/0600, redaction, retention, and delete tests pass on Linux."}],
+      "acceptance_results": [{"criterion": "Sessions are least-privilege, retention configurable, deletion supported, and pruning cannot abort startup.", "status": "passed", "evidence": "0700/0600, redaction, retention/delete, enumeration failure, broken symlink/race, and removal-failure tests pass."}],
       "verification": ["npm test", "npm run eval"], "notes": ["Physical-media erasure is explicitly not claimed."]
     },
     {
@@ -88,17 +88,17 @@
     },
     {
       "id": "REL-002", "approval": "approved", "revalidation": "changed", "disposition": "blocked", "sequence": 12,
-      "reason": "Confirmed process-tree and symlink defects are fixed, but the original full specialized platform matrix is incomplete.",
-      "files_changed": ["src/tools.ts", "src/tools.test.ts", "evals/cases.json", "scripts/run-deterministic-evals.mjs"],
-      "acceptance_results": [{"criterion": "Process trees, symlink cycles, prompt injection, live SIGINT, and session permissions are tested on supported platforms.", "status": "blocked", "evidence": "Process tree, symlink, and Linux session permission tests pass; live SIGINT/prompt-injection and Windows remain unverified."}],
+      "reason": "Confirmed process-tree and symlink defects plus platform-aware command environments are fixed, but the original full specialized platform matrix is incomplete.",
+      "files_changed": ["src/tools.ts", "src/tools.test.ts", "src/session.ts", "src/session.test.ts", "src/index.ts", "evals/cases.json", "scripts/run-deterministic-evals.mjs"],
+      "acceptance_results": [{"criterion": "Process trees, symlink cycles, prompt injection, live SIGINT, session maintenance, and command environments are tested on supported platforms.", "status": "blocked", "evidence": "Process-tree, symlink, pruning-failure, minimal environment, and platform-construction tests pass locally; live SIGINT/prompt-injection and the remaining full platform/runtime matrix remain unverified."}],
       "verification": ["npm test", "npm run eval"], "notes": ["Both newly confirmed defects are implemented, not merely documented."]
     },
     {
       "id": "TECH-005", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 13,
-      "reason": "Repository-native release gates are defined and all four Node/OS jobs passed on draft PR #8.",
+      "reason": "Repository-native release gates are defined; the complete pre-convergence Node/OS matrix passed and final-head CI is pending after artifact publication.",
       "files_changed": [".github/workflows/ci.yml", "scripts/cli-smoke.mjs", "scripts/check-release-facts.mjs", "package.json"],
-      "acceptance_results": [{"criterion": "Required checks run on every PR/release with retained results.", "status": "passed", "evidence": "Workflow run 29217420494 passed Node 22/24 on Ubuntu/Windows and uploaded the configured result artifacts."}],
-      "verification": ["GitHub Actions workflow run 29217420494", "Local Node 24 checks"], "notes": []
+      "acceptance_results": [{"criterion": "Required checks run on every PR/release with retained results.", "status": "passed", "evidence": "Workflow run 29240694231 passed Node 22/24 on Ubuntu/Windows at pre-convergence head c726227; final-head run is recorded externally after this artifact commit."}],
+      "verification": ["GitHub Actions workflow run 29240694231", "Local Node 24 checks"], "notes": ["A committed artifact cannot truthfully name its future artifact-only-head workflow run."]
     },
     {
       "id": "TECH-003", "approval": "approved", "revalidation": "confirmed", "disposition": "blocked", "sequence": 14,
@@ -109,23 +109,23 @@
     },
     {
       "id": "TECH-004", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 15,
-      "reason": "Context metadata, conservative estimation, and overflow recovery are provider-aware.",
+      "reason": "Context metadata, conservative estimation, and repeated abort-safe overflow recovery are provider-aware without catch-parameter reassignment.",
       "files_changed": ["src/provider.ts", "src/config.ts", "src/agent.ts", "src/history.ts", "src/history.test.ts", "src/agent.test.ts"],
       "acceptance_results": [{"criterion": "Code/non-English/tool histories and provider overflow recovery have boundary coverage.", "status": "passed", "evidence": "UTF-8 and tool-round history tests pass; simulated provider 400 reduces budget and retries successfully."}],
       "verification": ["npm test", "npm run eval"], "notes": []
     },
     {
       "id": "DOC-002", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 16,
-      "reason": "Metadata is aligned with the passing Node 22/24 Windows/Linux matrix.",
+      "reason": "Metadata is aligned with the Node 22/24 Windows/Linux matrix.",
       "files_changed": ["package.json", "package-lock.json", "README.md", ".github/workflows/ci.yml"],
-      "acceptance_results": [{"criterion": "Metadata and README match a passing Node 22/24 CI matrix.", "status": "passed", "evidence": "Workflow run 29217420494 passed Node 22 and 24 on Ubuntu and Windows."}],
-      "verification": ["GitHub Actions workflow run 29217420494", "Node 24 local build/test/package"], "notes": []
+      "acceptance_results": [{"criterion": "Metadata and README match a passing Node 22/24 CI matrix.", "status": "passed", "evidence": "Workflow run 29240694231 passed Node 22 and 24 on Ubuntu and Windows at pre-convergence head c726227."}],
+      "verification": ["GitHub Actions workflow run 29240694231", "Node 24 local build/test/package"], "notes": ["Final-head workflow evidence is added to the PR description after CI completes."]
     },
     {
       "id": "UX-003", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 17,
-      "reason": "Examples now use current filenames with legacy names only as migration fallbacks.",
-      "files_changed": [".env.example", ".opendrc.example.json", "scripts/check-release-facts.mjs"],
-      "acceptance_results": [{"criterion": "Legacy names appear only in fallback/migration contexts.", "status": "passed", "evidence": "Repository search and release fact check pass."}],
+      "reason": "Examples use current filenames, and trusted loading resolves home/project configuration independently of model-tool workspace policy.",
+      "files_changed": [".env.example", ".opendrc.example.json", "scripts/check-release-facts.mjs", "src/config.ts", "src/config.test.ts"],
+      "acceptance_results": [{"criterion": "Legacy names appear only in fallback/migration contexts and documented home/project precedence works through the actual loader.", "status": "passed", "evidence": "Repository facts pass; isolated home/CWD filesystem tests cover primary precedence, project override, environment override, and legacy fallback."}],
       "verification": ["npm run check:release", "Repository search"], "notes": []
     },
     {
@@ -144,9 +144,9 @@
     },
     {
       "id": "UX-005", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 20,
-      "reason": "Scope, full Git change review, and explicit snapshot recovery are available.",
+      "reason": "Scope, full Git change review, and rollback-safe explicit snapshot recovery are available.",
       "files_changed": ["src/index.ts", "src/checkpoint.ts", "src/checkpoint.test.ts", "README.md"],
-      "acceptance_results": [{"criterion": "Users can see scope, review all changes, and restore pre-task state in supported repositories.", "status": "passed", "evidence": "Banner/diff handlers implemented; checkpoint restore test preserves Git metadata and removes post-checkpoint files."}],
+      "acceptance_results": [{"criterion": "Users can see scope, review all changes, and restore pre-task state without destination-copy failure erasing live work.", "status": "passed", "evidence": "Banner/diff handlers pass; checkpoint fault injection proves successful rollback and retained recovery data when rollback itself fails."}],
       "verification": ["npm test", "CLI smoke"], "notes": []
     },
     {
@@ -191,14 +191,14 @@
       "id": "TECH-008", "approval": "approved", "revalidation": "confirmed", "disposition": "retained", "sequence": 27,
       "reason": "New concerns use focused modules without duplicating provider, path, or validation policy.",
       "files_changed": [],
-      "acceptance_results": [{"criterion": "Module focus remains and policy is not duplicated.", "status": "passed", "evidence": "Provider, validation, preview, checkpoint, session, and tool policy are separated; 159 tests pass."}],
+      "acceptance_results": [{"criterion": "Module focus remains and policy is not duplicated.", "status": "passed", "evidence": "Provider, validation, preview, checkpoint, session, and tool policy are separated; 175 tests pass."}],
       "verification": ["Architecture review", "npm test"], "notes": []
     },
     {
       "id": "REL-001", "approval": "approved", "revalidation": "confirmed", "disposition": "retained", "sequence": 28,
       "reason": "Retry, cancellation, history, and autosave behavior remains while integration coverage expanded.",
       "files_changed": [],
-      "acceptance_results": [{"criterion": "Existing failure-path tests remain green and equivalent end-to-end cases are added.", "status": "passed", "evidence": "159 tests pass, including retry classification and deterministic streamed provider tool loop."}],
+      "acceptance_results": [{"criterion": "Existing failure-path tests remain green and equivalent end-to-end cases are added.", "status": "passed", "evidence": "175 tests pass, including repeated abort-safe context overflow recovery and the deterministic streamed provider tool loop."}],
       "verification": ["npm test", "npm run test:cli"], "notes": []
     }
   ]

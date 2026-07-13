@@ -1,8 +1,8 @@
 # Decisions and scope
 
 - Teardown: `../project-teardown` (validated attachment; audited revision `359ae1241fddb0377cd604447d8fdd75e3109db9`)
-- Owner decision date: 2026-07-12
-- Authority: repository implementation, local verification, branch commits, branch push, and a draft pull request are authorized. Merge, deployment, credential use, publication/release, migration, and production changes are not authorized.
+- Owner decision dates: 2026-07-12 through 2026-07-13
+- Authority: repository implementation, local verification, branch commits, branch push, and updates to public PR #8 are authorized. The owner separately approved publishing the existing README content to that PR. Merge/close, deployment, credential use, release/package publication, migration, and production changes remain unauthorized.
 
 ## Product direction
 
@@ -27,3 +27,7 @@ Approved for preservation: PROD-005, UX-007, TECH-008, REL-001.
 Deferred until prerequisites complete: PROD-004, SEC-006.
 
 REL-002 substitution: implement and test the newly confirmed process-tree timeout and symlink-cycle defects, in addition to the remaining bounded fault-injection coverage that can run safely here.
+
+## Convergence authorization
+
+The owner authorized a minimal current-head convergence pass on `agent/implement-validated-teardown`: revalidate unresolved review findings, preserve later work, commit and push verified fixes, update the artifact and PR description, and run the Node 22/24 Linux/Windows matrix. PR #8 is currently ready for review rather than draft. It must not be merged or closed by this revision.
