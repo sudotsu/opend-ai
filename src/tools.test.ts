@@ -75,7 +75,7 @@ describe('workspace tool policy', () => {
     fs.rmSync(marker, { force: true });
     const policy = createToolPolicy({ workspaceRoot: dir, executionProfile: 'sandbox', timeoutMs: 2000 });
     const result = await runCommand(`printf escaped > ${JSON.stringify(marker)}`, policy);
-    expect(result).toMatch(/ERROR:.*Bubblewrap|ERROR:.*bwrap|Refusing host execution/i);
+    expect(result).toMatch(/ERROR:.*(?:Bubblewrap|bwrap|unavailable on native Windows|Refusing host execution)/i);
     expect(fs.existsSync(marker)).toBe(false);
   });
 });
