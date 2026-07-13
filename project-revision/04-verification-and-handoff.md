@@ -2,7 +2,7 @@
 
 **Revision status:** partial
 
-The immutable product-code endpoint for this artifact is `b3587021e5eed7ea685cfc977b1897392ee1912e` on `agent/implement-validated-teardown`, based on the preserved PR head `c726227223ebb32ca80d36058deeeb9c83209d57`. The substantive convergence implementation is product commit `8fd09c23b81c6c59bfed6656ea0b8a7c427e57f2`; `b358702` is its Windows-CI test-probe correction. This artifact is committed as a product-unchanged descendant. Partial status means specific acceptance evidence is still blocked or deferred; it is not a claim that every approved acceptance criterion is complete.
+The immutable product-code endpoint for this artifact is `7ba943f73ac04b5e4243edd604062a6e615b5c81` on `agent/implement-validated-teardown`, based on the preserved PR head `c726227223ebb32ca80d36058deeeb9c83209d57`. Product commit `8fd09c23` contains the main convergence implementation, `b358702` corrected the first Windows probe, and `7ba943f` addresses the final incremental review. This artifact is committed as a product-unchanged descendant. Partial status means specific acceptance evidence is still blocked or deferred; it is not a claim that every approved acceptance criterion is complete.
 
 PR #8 is public, open, and ready for review rather than draft. Publication of its existing README content was explicitly approved. No merge/close, deployment, migration, release/package publication, credential-backed live run, or production change is authorized or claimed.
 
@@ -10,18 +10,18 @@ PR #8 is public, open, and ready for review rather than draft. Publication of it
 
 - `npm ci --cache /tmp/opend-ai-npm-cache`: passed; prepare/build passed; 92 packages audited.
 - `npm run build`: passed with the repository TypeScript configuration.
-- `npm test`: 16 files, 175 tests passed.
+- `npm test`: 16 files, 176 tests passed.
 - `npm run test:cli`: passed.
 - `npm run eval`: 20/20 deterministic cases passed. Generated timestamp/duration noise was not committed.
 - `npm run check:release`: passed.
 - `npm audit --omit=dev --audit-level=low --json --cache /tmp/opend-ai-npm-cache`: zero vulnerabilities; 43 production dependencies, 146 total dependencies.
-- `npm pack --dry-run --json --cache /tmp/opend-ai-npm-cache`: passed; 27 entries, 52,101-byte archive, 166,024 bytes unpacked.
+- `npm pack --dry-run --json --cache /tmp/opend-ai-npm-cache`: passed; 27 entries, approximately 52.4 kB archived and 167.4 kB unpacked.
 - `git diff --check`: passed.
 - Original project-teardown validator: passed.
 - Project-revision validator: passed before this update and must pass again for the artifact-only commit.
 - No repository lint/static script exists. Changed TypeScript was manually inspected for the catch-parameter reassignment that prompted the review; the mutable state is now `overflowError`.
 
-The latest complete pre-convergence workflow was run `29240694231` at `c726227`; all Node 22/24 Ubuntu/Windows jobs passed. Convergence workflow `29246454484` passed both Ubuntu jobs but failed both Windows jobs at 174/175 tests because the test command's quoted `node -p` expression was evaluated as a string literal by `cmd.exe`. Product commit `b358702` changes only that probe to `node -p process.env.OPEND_WORKSPACE`; the complete local gate passes. The final artifact-only PR head has not yet run at the time this immutable artifact is authored. Its actual workflow run belongs in the external PR description after CI completes, because a committed artifact cannot truthfully name a future run.
+Workflow `29246758206` passed Node 22/24 on Ubuntu/Windows at the prior artifact head after catching and correcting the first Windows probe defect. A subsequent review identified quoted-command and untracked-preview gaps; product commit `7ba943f` fixes both and passes the complete local gate. The final artifact-only PR head has not yet run at the time this immutable artifact is authored. Its actual workflow run belongs in the external PR description after CI completes, because a committed artifact cannot truthfully name a future run.
 
 ## Convergence coverage
 
@@ -29,7 +29,7 @@ The latest complete pre-convergence workflow was run `29240694231` at `c726227`;
 - Grep uses the linear-time `re2js` engine with case-insensitive ordinary-expression, ambiguous-alternation, and invalid/unsupported-pattern coverage. Existing protected-path, traversal, symlink-cycle, byte, and 100-result bounds remain.
 - Checkpoint restore stages checkpoint and recovery copies before replacement, restores original live contents after injected replacement failure, preserves exclusions, and retains/reports recovery data after injected rollback failure.
 - `editFile()` rejects oversized and non-regular targets before reading. Its existing slice-concatenation literal replacement and `$`-token regression test were verified and preserved.
-- Command environment construction is platform-testable, minimal, and uses platform paths/separators. Windows receives synthetic home/temp variables; native Windows sandbox execution remains fail-closed and unsafe-host remains explicit/warned.
+- Command environment construction is platform-testable, minimal, and uses platform paths/separators. Windows receives synthetic home/temp variables and verbatim `cmd.exe` arguments with quoted-command coverage; native Windows sandbox execution remains fail-closed and unsafe-host remains explicit/warned.
 - Session pruning catches enumeration and per-entry failures, uses `lstat`, and ignores non-regular/broken/raced entries; startup has a final guard.
 - Approval previews reject null/binary content in `old_string` and `new_string` independently.
 - Context-overflow recovery retains repeated reductions, abort handling, notices, and minimum-budget behavior without reassigning a catch parameter.
@@ -45,13 +45,13 @@ The latest complete pre-convergence workflow was run `29240694231` at `c726227`;
 
 The original implementation baseline was clean. The convergence baseline at remote head `c726227` was also clean: no staged, unstaged, or untracked paths. Later branch work was fetched and preserved. `PLAN-render-updates.md` and `assets/opend-ai-animated-banner-smooth.gif` remain unchanged. Secret-pattern review found only placeholders and deliberate redaction fixtures; no credential was added.
 
-All unresolved inline threads and relevant outside-diff comments were inspected before editing. Of the current eight areas, every area was confirmed. The literal-replacement subfinding was already fixed by slice concatenation and an existing test, so it was documented rather than rewritten. Earlier comments for checkout credential persistence, CLI/live-eval deadlines, URL fallback, abortable commands, checkpoint containment/prompt handling, workspace validation, catastrophic exec approval, bounded reads/previews/diff, legacy session deletion, protected paths, sandbox HOME/no-fallback, and the Windows-specific no-fallback assertion were already fixed at `c726227` and were not duplicated.
+All unresolved inline threads and relevant outside-diff comments were inspected before editing. Of the initial eight areas, every area was confirmed. The literal-replacement subfinding was already fixed by slice concatenation and an existing test, so it was documented rather than rewritten. A later incremental review added two valid findings: quoted native-Windows commands and symlink/protected/unbounded untracked previews. Both are fixed and tested in `7ba943f`. Earlier already-fixed comments were not duplicated.
 
 ## Changed-path mapping
 
-- Convergence product commit: `package.json`, `package-lock.json`, `src/agent.ts`, `src/checkpoint.ts` and test, `src/config.ts` and test, `src/index.ts`, `src/preview.ts` and test, `src/session.ts` and test, `src/tools.ts` and test.
+- Convergence product commits: `package.json`, `package-lock.json`, `src/agent.ts`, `src/checkpoint.ts` and test, `src/config.ts` and test, `src/index.ts`, `src/preview.ts` and test, `src/session.ts` and test, `src/tools.ts` and test.
 - Finding mapping: SEC-001/SEC-002/SEC-003/REL-002 (regex, command environment, fail-closed tool boundary); UX-005 (rollback-safe checkpoints); SEC-004/UX-003 (session maintenance and trusted config loading); TECH-001 (bounded/literal edit); UX-001 (binary preview); TECH-004/REL-001 (overflow recovery).
-- `project-revision/**`: artifact-only descendant describing final product commit `b3587021e5eed7ea685cfc977b1897392ee1912e`.
+- `project-revision/**`: artifact-only descendant describing final product commit `7ba943f73ac04b5e4243edd604062a6e615b5c81`.
 
 ## Validators
 

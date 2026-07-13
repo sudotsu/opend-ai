@@ -106,7 +106,7 @@ Approved, confirmed, retained (sequence 26). Existing theme, streamed reasoning 
 
 ## TECH-008 — Small modular architecture and focused tests are strong foundations
 
-Approved, confirmed, retained (sequence 27). New policy, provider, preview, validation, checkpoint, and session concerns are separate focused modules. The suite grew from 136 to 175 passing tests without adding a framework.
+Approved, confirmed, retained (sequence 27). New policy, provider, preview, validation, checkpoint, and session concerns are separate focused modules. The suite grew from 136 to 176 passing tests without adding a framework.
 
 ## REL-001 — Existing retry, cancellation, history, and autosave controls are thoughtful
 
@@ -132,6 +132,8 @@ Focused regression coverage was added for the affected tool, checkpoint, preview
 
 The eight current-head areas listed in the revalidation record were fixed in immutable product commit `8fd09c23b81c6c59bfed6656ea0b8a7c427e57f2`. `re2js` was added intentionally for linear-time grep patterns. Checkpoint replacement now has recovery/rollback fault injection. Edit reads are regular-file and byte bounded while the already-literal replacement implementation remains unchanged. Windows unsafe-host environments are minimally constructed with platform separators and synthetic home/temp variables; secure native Windows execution still fails closed. Session pruning cannot abort startup, edit previews reject binary old/new operands independently, configuration files use a trusted application resolver, and context-overflow retry state is explicit.
 
-Workflow `29246454484` then revealed that the behavioral test's quoted `node -p` expression was interpreted as a string literal by `cmd.exe`; 174/175 tests passed and the environment code itself was not implicated. Product commit `b3587021e5eed7ea685cfc977b1897392ee1912e` changes only that probe to the cross-shell-safe unquoted expression. The complete local gate again passed before commit. This later product commit is the artifact's implementation endpoint.
+Workflow `29246454484` then revealed that the behavioral test's quoted `node -p` expression was interpreted as a string literal by `cmd.exe`; 174/175 tests passed. Product commit `b3587021e5eed7ea685cfc977b1897392ee1912e` changed the probe to a cross-shell-safe unquoted expression, and workflow `29246758206` passed all four jobs.
 
-Local convergence verification passed with 16 files/175 tests. The exact positive Bubblewrap probe `bwrap --unshare-all --die-with-parent --ro-bind /usr /usr /usr/bin/true` failed with `bwrap: open /proc/7/ns/ns failed: No such file or directory`; SEC-002 therefore remains blocked rather than accepted.
+A fresh review correctly showed that avoiding quotes in the probe did not prove quoted command support and that `/diff` could still follow untracked symlinks/protected paths and inspect unlimited entries. Final product commit `7ba943f73ac04b5e4243edd604062a6e615b5c81` enables verbatim native-Windows command arguments, restores quoted-command coverage, and centralizes protected/symlink-safe untracked previews with a 100-path cap. The complete local gate passed with 176 tests before commit. This is the artifact's implementation endpoint.
+
+Local convergence verification passed with 16 files/176 tests. The exact positive Bubblewrap probe `bwrap --unshare-all --die-with-parent --ro-bind /usr /usr /usr/bin/true` failed with `bwrap: open /proc/7/ns/ns failed: No such file or directory`; SEC-002 therefore remains blocked rather than accepted.

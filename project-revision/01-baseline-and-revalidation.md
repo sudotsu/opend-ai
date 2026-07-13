@@ -25,6 +25,8 @@ Eight convergence areas remained valid: trusted home/project configuration path 
 
 Earlier review leads for bounded `/diff`, non-persisted checkout credentials, CLI smoke timeout settlement, live-eval timeouts/report fallback, abortable commands, protected `.git`/`.netrc`, checkpoint ID containment, prompt-loop checkpoint error handling, catastrophic exec approval, workspace validation, bounded reads/previews, legacy session deletion, and sandbox no-host-fallback were already present at `c726227`; their tests or direct source evidence remained intact, so no duplicate changes were made.
 
+A fresh incremental review after the first green convergence matrix identified two additional valid defects. Native Windows `cmd.exe` still needed verbatim argument handling for quoted commands, and `/diff` bounded individual untracked files but could follow symlinks/protected paths and inspect an unbounded number of entries. Both were reproduced from source/CI behavior and fixed minimally; no review finding in this last pass was skipped.
+
 ## Finding-by-finding classification
 
 | Finding | Revalidation | Current evidence / divergence |
