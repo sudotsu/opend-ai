@@ -2,7 +2,7 @@
 
 **Revision status:** partial
 
-The immutable product-code endpoint for this artifact is `8fd09c23b81c6c59bfed6656ea0b8a7c427e57f2` on `agent/implement-validated-teardown`, based on the preserved PR head `c726227223ebb32ca80d36058deeeb9c83209d57`. This artifact is committed as a product-unchanged descendant. Partial status means specific acceptance evidence is still blocked or deferred; it is not a claim that every approved acceptance criterion is complete.
+The immutable product-code endpoint for this artifact is `b3587021e5eed7ea685cfc977b1897392ee1912e` on `agent/implement-validated-teardown`, based on the preserved PR head `c726227223ebb32ca80d36058deeeb9c83209d57`. The substantive convergence implementation is product commit `8fd09c23b81c6c59bfed6656ea0b8a7c427e57f2`; `b358702` is its Windows-CI test-probe correction. This artifact is committed as a product-unchanged descendant. Partial status means specific acceptance evidence is still blocked or deferred; it is not a claim that every approved acceptance criterion is complete.
 
 PR #8 is public, open, and ready for review rather than draft. Publication of its existing README content was explicitly approved. No merge/close, deployment, migration, release/package publication, credential-backed live run, or production change is authorized or claimed.
 
@@ -21,7 +21,7 @@ PR #8 is public, open, and ready for review rather than draft. Publication of it
 - Project-revision validator: passed before this update and must pass again for the artifact-only commit.
 - No repository lint/static script exists. Changed TypeScript was manually inspected for the catch-parameter reassignment that prompted the review; the mutable state is now `overflowError`.
 
-The latest complete pre-convergence workflow was run `29240694231` at `c726227`; all Node 22/24 Ubuntu/Windows jobs passed. The final artifact-only PR head has not yet run at the time this immutable artifact is authored. Its actual workflow run belongs in the external PR description after CI completes, because a committed artifact cannot truthfully name a future run.
+The latest complete pre-convergence workflow was run `29240694231` at `c726227`; all Node 22/24 Ubuntu/Windows jobs passed. Convergence workflow `29246454484` passed both Ubuntu jobs but failed both Windows jobs at 174/175 tests because the test command's quoted `node -p` expression was evaluated as a string literal by `cmd.exe`. Product commit `b358702` changes only that probe to `node -p process.env.OPEND_WORKSPACE`; the complete local gate passes. The final artifact-only PR head has not yet run at the time this immutable artifact is authored. Its actual workflow run belongs in the external PR description after CI completes, because a committed artifact cannot truthfully name a future run.
 
 ## Convergence coverage
 
@@ -51,7 +51,7 @@ All unresolved inline threads and relevant outside-diff comments were inspected 
 
 - Convergence product commit: `package.json`, `package-lock.json`, `src/agent.ts`, `src/checkpoint.ts` and test, `src/config.ts` and test, `src/index.ts`, `src/preview.ts` and test, `src/session.ts` and test, `src/tools.ts` and test.
 - Finding mapping: SEC-001/SEC-002/SEC-003/REL-002 (regex, command environment, fail-closed tool boundary); UX-005 (rollback-safe checkpoints); SEC-004/UX-003 (session maintenance and trusted config loading); TECH-001 (bounded/literal edit); UX-001 (binary preview); TECH-004/REL-001 (overflow recovery).
-- `project-revision/**`: artifact-only descendant describing product commit `8fd09c23b81c6c59bfed6656ea0b8a7c427e57f2`.
+- `project-revision/**`: artifact-only descendant describing final product commit `b3587021e5eed7ea685cfc977b1897392ee1912e`.
 
 ## Validators
 

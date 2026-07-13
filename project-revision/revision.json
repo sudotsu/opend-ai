@@ -4,9 +4,9 @@
   "teardown_path": "attached validated project-teardown",
   "teardown_audited_revision": "359ae1241fddb0377cd604447d8fdd75e3109db9",
   "implementation_start_revision": "359ae1241fddb0377cd604447d8fdd75e3109db9",
-  "implementation_end_revision": "8fd09c23b81c6c59bfed6656ea0b8a7c427e57f2",
+  "implementation_end_revision": "b3587021e5eed7ea685cfc977b1897392ee1912e",
   "revision_status": "partial",
-  "generated_at": "2026-07-13T11:25:49Z",
+  "generated_at": "2026-07-13T11:33:26Z",
   "existing_work_reconciled": true,
   "findings": [
     {
@@ -90,15 +90,15 @@
       "id": "REL-002", "approval": "approved", "revalidation": "changed", "disposition": "blocked", "sequence": 12,
       "reason": "Confirmed process-tree and symlink defects plus platform-aware command environments are fixed, but the original full specialized platform matrix is incomplete.",
       "files_changed": ["src/tools.ts", "src/tools.test.ts", "src/session.ts", "src/session.test.ts", "src/index.ts", "evals/cases.json", "scripts/run-deterministic-evals.mjs"],
-      "acceptance_results": [{"criterion": "Process trees, symlink cycles, prompt injection, live SIGINT, session maintenance, and command environments are tested on supported platforms.", "status": "blocked", "evidence": "Process-tree, symlink, pruning-failure, minimal environment, and platform-construction tests pass locally; live SIGINT/prompt-injection and the remaining full platform/runtime matrix remain unverified."}],
+      "acceptance_results": [{"criterion": "Process trees, symlink cycles, prompt injection, live SIGINT, session maintenance, and command environments are tested on supported platforms.", "status": "blocked", "evidence": "Process-tree, symlink, pruning-failure, minimal environment, and platform-construction tests pass locally. Workflow 29246454484 exposed and product commit b358702 corrected cross-shell quoting in the Windows behavioral probe; final-head CI remains external evidence. Live SIGINT/prompt-injection and the remaining full platform/runtime matrix remain unverified."}],
       "verification": ["npm test", "npm run eval"], "notes": ["Both newly confirmed defects are implemented, not merely documented."]
     },
     {
       "id": "TECH-005", "approval": "approved", "revalidation": "confirmed", "disposition": "implemented", "sequence": 13,
       "reason": "Repository-native release gates are defined; the complete pre-convergence Node/OS matrix passed and final-head CI is pending after artifact publication.",
       "files_changed": [".github/workflows/ci.yml", "scripts/cli-smoke.mjs", "scripts/check-release-facts.mjs", "package.json"],
-      "acceptance_results": [{"criterion": "Required checks run on every PR/release with retained results.", "status": "passed", "evidence": "Workflow run 29240694231 passed Node 22/24 on Ubuntu/Windows at pre-convergence head c726227; final-head run is recorded externally after this artifact commit."}],
-      "verification": ["GitHub Actions workflow run 29240694231", "Local Node 24 checks"], "notes": ["A committed artifact cannot truthfully name its future artifact-only-head workflow run."]
+      "acceptance_results": [{"criterion": "Required checks run on every PR/release with retained results.", "status": "passed", "evidence": "Workflow 29240694231 passed Node 22/24 on Ubuntu/Windows at pre-convergence head c726227. Workflow 29246454484 then caught a Windows-only probe quoting defect; b358702 fixes it and final-head CI is recorded externally after this artifact commit."}],
+      "verification": ["GitHub Actions workflow runs 29240694231 and 29246454484", "Local Node 24 checks"], "notes": ["A committed artifact cannot truthfully name its future artifact-only-head workflow run."]
     },
     {
       "id": "TECH-003", "approval": "approved", "revalidation": "confirmed", "disposition": "blocked", "sequence": 14,
