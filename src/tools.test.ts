@@ -87,7 +87,7 @@ describe('workspace tool policy', () => {
         expect(env.HOME).toBe(path.join(tempRoot, 'opend-home'));
         expect(env.TMPDIR).toBe(tempRoot);
       }
-      const result = await runCommand('node -p "process.env.OPEND_WORKSPACE"', policy);
+      const result = await runCommand('node -p process.env.OPEND_WORKSPACE', policy);
       expect(result).toContain(dir);
     } finally {
       fs.rmSync(tempRoot, { recursive: true, force: true });
