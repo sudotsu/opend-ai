@@ -5,8 +5,12 @@
 export const CATASTROPHIC: RegExp[] = [
   /\brm\s+(-[a-z]*\s+)*(-[a-z]*r[a-z]*f|-[a-z]*f[a-z]*r)\b.*\s(\/|~|\/\*|\.\/\*|\$HOME)\s*$/i,
   /\brm\s+-[a-z]*r[a-z]*f?\s+\/(\s|$)/i,
+  /\brm\s+(-[a-z]*\s+)*-[a-z]*r[a-z]*f?[a-z]*\s+(\$\{?HOME\}?|"(\$\{?HOME\}?|~)"|'(\$\{?HOME\}?|~)'|~)(\/|\s|$)/i,
+  /\bfind\s+(\/|~|\$\{?HOME\}?).*\s-delete\b/i,
+  /\bgit\s+clean\b.*-[a-z]*f/i,                     // git clean needs -f to delete
   /\bmkfs\b/i,
   /\bdd\b.*\bof=\/dev\//i,
+  /\b(tee|cat|cp)\b.*\/dev\/(sd|nvme|hd|disk)/i,
   />\s*\/dev\/(sd|nvme|hd|disk)/i,
   /:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;/,          // fork bomb
   /\bformat\b\s+[a-z]:/i,                           // Windows format C:
