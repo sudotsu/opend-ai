@@ -527,7 +527,14 @@ export function grepSearch(pattern: string, searchPath: string, policy = createT
     try { content = fs.readFileSync(currentPath, 'utf-8'); } catch { return; }
     content.split('\n').forEach((line, index) => {
       if (matches.length < 100 && regex.test(line)) {
-        matches.push({ file: relative, lineNumber: index + 1, lineContent: line.trim() });
+        // Cap per-line length: minified/one-line files (bundles, source maps, lock
+        // files) can make a single matched "line" megabytes long, which is useless
+        // as a grep hit and blows up the tool result. 100 matches was never the real
+        // bound — line WIDTH was the leak.
+        const trimmed = line.trim();
+        const lineContent =
+          trimmed.length > 500 ? trimmed.slice(0, 500) + ' …[line truncated]' : trimmed;
+        matches.push({ file: relative, lineNumber: index + 1, lineContent });
       }
     });
   }

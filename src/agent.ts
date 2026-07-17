@@ -226,9 +226,51 @@ export class VeniceAgent {
     this.onConfirm = config.onConfirm;
     this.onNotice = config.onNotice;
     this.toolPolicy = config.toolPolicy ?? createToolPolicy({ timeoutMs: this.commandTimeoutMs });
+    // A single tool result lands in the CURRENT round, which splitForPrune can
+    // never evict — so one oversized run_command/read_file can overflow the model
+    // on its own, no matter how good the history pruning is. Clamp the policy's
+    // per-call output cap to a safe slice of the resolved context budget so that
+    // can't happen. min() so an explicitly-configured smaller cap still wins.
+    const derivedCap = this.toolOutputCap(this.contextTokens);
+    this.toolPolicy = {
+      ...this.toolPolicy,
+      maxOutputChars: Math.min(this.toolPolicy.maxOutputChars ?? derivedCap, derivedCap)
+    };
     this.onBeforeFileMutation = config.onBeforeFileMutation;
 
     this.messages.push({ role: 'system', content: this.systemPrompt() });
+  }
+
+  // Maximum characters a SINGLE tool result may contribute, derived from the
+  // context budget so no one tool output can overflow the window on its own.
+  // estTokens() elsewhere estimates ~4 UTF-8 bytes per token; a tool result also
+  // has to coexist with the system prompt, summary, the model's reply, and the
+  // rest of the current round — so the cap must be a fraction of the window, not
+  // the whole thing.
+  private toolOutputCap(contextTokens: number): number {
+    // ~4 chars/token, and a single tool result may occupy at most ~1/4 of the
+    // window (it shares the budget with the system prompt, rolling summary, the
+    // model's reply, and the rest of the current round). 4 × 0.25 = 1, so the
+    // char cap ≈ contextTokens. The floor keeps a tiny or misconfigured budget
+    // usable rather than starving every tool of output.
+    const FLOOR = 16_000;
+    return Math.max(FLOOR, Math.floor(contextTokens));
+  }
+
+  // Enforce the per-result cap on EVERY tool output at the single dispatch choke
+  // point. Individual tools historically capped inconsistently (run_command honored
+  // maxOutputChars, read_file hard-capped at 20k, grep_search not at all), which let
+  // one grep over a minified file put 1.6M chars into a single round that pruning
+  // can never evict. Truncating here bounds all of them by construction.
+  private capToolResult(result: string): string {
+    const max = this.toolPolicy.maxOutputChars ?? this.toolOutputCap(this.contextTokens);
+    if (typeof result !== 'string' || result.length <= max) return result;
+    const dropped = result.length - max;
+    return (
+      result.slice(0, max) +
+      `\n[Truncated: ${dropped} chars over the ${max}-char tool-output limit. ` +
+      `Narrow the query — a smaller path, a tighter pattern, or read_file with line ranges.]`
+    );
   }
 
   private systemPrompt(): string {
@@ -320,6 +362,10 @@ export class VeniceAgent {
   }
 
   private isRetryable(err: any): boolean {
+    // A context overflow is not transient — retrying the same oversized request
+    // just burns attempts. Let chat()'s overflow recovery (prune + shrink budget)
+    // handle it instead of the backoff loop.
+    if (this.isContextOverflow(err)) return false;
     const status = err?.status;
     if (typeof status === 'number') return status === 429 || status >= 500;
     return true; // no HTTP status → network/connection error → worth a retry
@@ -327,7 +373,11 @@ export class VeniceAgent {
 
   private isContextOverflow(err: any): boolean {
     const text = `${err?.message ?? ''} ${err?.error?.message ?? ''}`.toLowerCase();
-    return err?.status === 400 && /(context|token).*(length|window|maximum|limit|exceed|too long)/i.test(text);
+    // Do NOT gate on `status === 400`: overflow errors surfaced over the streaming
+    // (SSE) path arrive as a plain Error with no `.status`, so the message text is
+    // the only reliable signal. The phrasing test is specific enough on its own —
+    // a bare 400 without this wording was never an overflow anyway.
+    return /(context|token|prompt).*(length|window|maximum|limit|exceed|too long)/i.test(text);
   }
 
   // The messages actually sent to the model: the rolling summary (if any) is
@@ -697,6 +747,7 @@ export class VeniceAgent {
           result = 'Error: ' + err.message;
         }
 
+        result = this.capToolResult(result);
         this.onToolEnd?.(name, result);
         this.messages.push({ role: 'tool', tool_call_id: tc.id, name, content: result });
       }
