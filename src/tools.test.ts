@@ -142,3 +142,55 @@ describe('workspace tool policy', () => {
     expect(fs.existsSync(marker)).toBe(false);
   });
 });
+
+describe('grep_search filtering', () => {
+  it('skips .gitignore-matched files and always-skip dirs, but searches the rest', () => {
+    const policy = createToolPolicy({ workspaceRoot: dir });
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'secret.txt\nbuilt/\n');
+    fs.writeFileSync(path.join(dir, 'keep.txt'), 'needle here');
+    fs.writeFileSync(path.join(dir, 'secret.txt'), 'needle here');       // gitignored file
+    fs.mkdirSync(path.join(dir, 'built'));
+    fs.writeFileSync(path.join(dir, 'built', 'gen.txt'), 'needle here');  // gitignored dir
+    fs.mkdirSync(path.join(dir, 'node_modules'));
+    fs.writeFileSync(path.join(dir, 'node_modules', 'dep.txt'), 'needle here'); // always-skip
+
+    const out = grepSearch('needle', '.', policy);
+    expect(out).toContain('keep.txt');
+    expect(out).not.toContain('secret.txt');
+    expect(out).not.toContain('gen.txt');
+    expect(out).not.toContain('dep.txt');
+  });
+
+  it('honors a .gitignore inherited from an enclosing repo above the search root', () => {
+    const policy = createToolPolicy({ workspaceRoot: dir });
+    fs.mkdirSync(path.join(dir, '.git'));                    // dir is the repo root
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'logs/\n');
+    fs.mkdirSync(path.join(dir, 'src'));
+    fs.mkdirSync(path.join(dir, 'src', 'logs'));
+    fs.writeFileSync(path.join(dir, 'src', 'logs', 'run.txt'), 'needle');
+    fs.writeFileSync(path.join(dir, 'src', 'app.txt'), 'needle');
+
+    const out = grepSearch('needle', 'src', policy);        // search a subdir of the repo
+    expect(out).toContain('app.txt');
+    expect(out).not.toContain('run.txt');
+  });
+
+  it('skips binary files by content, not extension', () => {
+    const policy = createToolPolicy({ workspaceRoot: dir });
+    // A NUL byte makes this "text" file binary; a .bin file with no NUL stays searchable.
+    fs.writeFileSync(path.join(dir, 'data.txt'), Buffer.from('needle\x00needle', 'binary'));
+    fs.writeFileSync(path.join(dir, 'plain.bin'), 'needle in a misnamed text file');
+
+    const out = grepSearch('needle', '.', policy);
+    expect(out).not.toContain('data.txt');
+    expect(out).toContain('plain.bin');
+  });
+
+  it('still searches a file passed directly as the root even if its name would be skipped elsewhere', () => {
+    const policy = createToolPolicy({ workspaceRoot: dir });
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'target.txt\n');
+    fs.writeFileSync(path.join(dir, 'target.txt'), 'needle');
+    // Pointed at explicitly → the user's intent wins over the ignore rule.
+    expect(grepSearch('needle', 'target.txt', policy)).toContain('target.txt');
+  });
+});
