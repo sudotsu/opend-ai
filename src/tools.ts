@@ -3,9 +3,93 @@ import os from 'os';
 import path from 'path';
 import { spawn, spawnSync } from 'child_process';
 import { RE2JS } from 're2js';
+import ignore, { type Ignore } from 'ignore';
 
 const MAX_FILE_BYTES = 1_000_000;
 const MAX_UNTRACKED_PREVIEWS = 100;
+
+// Directory basenames grep_search always skips, regardless of .gitignore: VCS
+// internals plus heavy/generated trees that are useless to search and are common
+// even OUTSIDE a git repo (e.g. a home-directory workspace with no .gitignore at
+// all). Real .gitignore rules layer on top of this — this is the floor so a broad
+// workspace stays useful, not the whole story.
+const ALWAYS_SKIP_DIRS = new Set([
+  '.git', 'node_modules', 'dist', 'build', 'out', '.next', '.nuxt', '.svelte-kit',
+  '.cache', '.parcel-cache', '.turbo', '.npm', '.pnpm-store', '.yarn',
+  '.venv', 'venv', '__pycache__', '.mypy_cache', '.pytest_cache', '.ruff_cache',
+  '.gradle', 'target', 'vendor', '.terraform', '.cargo', '.rustup', 'coverage',
+  '.idea', '.vscode-test'
+]);
+
+// One .gitignore's rules, scoped to the directory that contains it. git evaluates
+// patterns relative to the .gitignore's own location, so each layer remembers its
+// baseDir and we test paths relative to that.
+interface IgnoreLayer {
+  baseDir: string;
+  ig: Ignore;
+}
+
+// Read a single directory's .gitignore into a scoped matcher, or null if absent.
+function loadIgnoreLayer(dir: string): IgnoreLayer | null {
+  try {
+    const body = fs.readFileSync(path.join(dir, '.gitignore'), 'utf-8');
+    return { baseDir: dir, ig: ignore().add(body) };
+  } catch {
+    return null; // no .gitignore here (ENOENT) or unreadable — nothing to add
+  }
+}
+
+// Ancestor .gitignore files from the enclosing git repo root down to (but not
+// including) `start` also apply when you search a subdirectory of a repo, exactly
+// as git would honor them. Collect them so searching e.g. repo/src still respects
+// repo/.gitignore. Walk stops at the repo root (first ancestor containing .git) or
+// the filesystem root.
+function ancestorIgnoreLayers(start: string): IgnoreLayer[] {
+  const layers: IgnoreLayer[] = [];
+  let dir = path.dirname(start);
+  while (true) {
+    const layer = loadIgnoreLayer(dir);
+    if (layer) layers.unshift(layer); // outermost first
+    if (fs.existsSync(path.join(dir, '.git'))) break; // reached the repo root
+    const parent = path.dirname(dir);
+    if (parent === dir) break; // filesystem root
+    dir = parent;
+  }
+  return layers;
+}
+
+// True if any active .gitignore layer ignores this path. The `ignore` library wants
+// a POSIX, repo-relative path (never absolute, never leading '/'), and matches
+// directory patterns more reliably with a trailing slash.
+function isGitIgnored(absPath: string, isDir: boolean, layers: IgnoreLayer[]): boolean {
+  for (const { baseDir, ig } of layers) {
+    const rel = path.relative(baseDir, absPath);
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) continue; // not under this layer
+    const posix = rel.split(path.sep).join('/') + (isDir ? '/' : '');
+    if (ig.ignores(posix)) return true;
+  }
+  return false;
+}
+
+// Content-sniff a file as binary by looking for a NUL byte in its opening bytes —
+// the same heuristic git and ripgrep use. Correct across languages and extensions,
+// unlike an extension allow/deny list which is always incomplete. Reads only the
+// head so it stays cheap on large files.
+function looksBinary(absPath: string): boolean {
+  const SNIFF_BYTES = 8192;
+  let fd: number | null = null;
+  try {
+    fd = fs.openSync(absPath, 'r');
+    const buf = Buffer.alloc(SNIFF_BYTES);
+    const read = fs.readSync(fd, buf, 0, SNIFF_BYTES, 0);
+    for (let i = 0; i < read; i++) if (buf[i] === 0) return true;
+    return false;
+  } catch {
+    return true; // unreadable → treat as non-text and skip
+  } finally {
+    if (fd !== null) fs.closeSync(fd);
+  }
+}
 
 export type ExecutionProfile = 'sandbox' | 'unsafe-host';
 
@@ -507,22 +591,39 @@ export function grepSearch(pattern: string, searchPath: string, policy = createT
   const matches: { file: string; lineNumber: number; lineContent: string }[] = [];
   const visited = new Set<string>();
 
-  function traverse(currentPath: string): void {
+  // Seed with .gitignore rules inherited from any enclosing repo above the search
+  // root, then stack each directory's own .gitignore as we descend.
+  const baseLayers = ancestorIgnoreLayers(absolutePath);
+
+  function traverse(currentPath: string, layers: IgnoreLayer[]): void {
     if (matches.length >= 100) return;
     const stats = fs.lstatSync(currentPath);
-    if (stats.isSymbolicLink()) return;
+    if (stats.isSymbolicLink()) return; // never follow symlinks (cycles / escape)
+
     if (stats.isDirectory()) {
       const real = fs.realpathSync(currentPath);
       if (visited.has(real)) return;
       visited.add(real);
-      const base = path.basename(currentPath);
-      if (['node_modules', '.git', 'dist'].includes(base)) return;
-      for (const file of fs.readdirSync(currentPath)) traverse(path.join(currentPath, file));
+      // The search root itself is never filtered by name/ignore rules — the user
+      // pointed us here on purpose. Filtering applies to its descendants.
+      if (currentPath !== absolutePath) {
+        if (ALWAYS_SKIP_DIRS.has(path.basename(currentPath))) return;
+        if (isGitIgnored(currentPath, true, layers)) return;
+      }
+      const layer = loadIgnoreLayer(currentPath);
+      const nextLayers = layer ? [...layers, layer] : layers;
+      for (const entry of fs.readdirSync(currentPath)) {
+        traverse(path.join(currentPath, entry), nextLayers);
+      }
       return;
     }
+
     if (!stats.isFile() || stats.size > MAX_FILE_BYTES) return;
+    if (currentPath !== absolutePath && isGitIgnored(currentPath, false, layers)) return;
     const relative = relativeForPolicy(currentPath, policy);
     if (isProtected(relative)) return;
+    if (looksBinary(currentPath)) return; // skip binaries — grep hits in them are noise
+
     let content: string;
     try { content = fs.readFileSync(currentPath, 'utf-8'); } catch { return; }
     content.split('\n').forEach((line, index) => {
@@ -539,6 +640,6 @@ export function grepSearch(pattern: string, searchPath: string, policy = createT
     });
   }
 
-  traverse(absolutePath);
+  traverse(absolutePath, baseLayers);
   return JSON.stringify(matches, null, 2);
 }
