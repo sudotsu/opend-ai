@@ -275,6 +275,10 @@ retries, pricing, default permission mode, and extra warning patterns.
 | `exit` / `quit` | Quit (auto-saves if there's history) |
 | Ctrl+C | Cancel in-flight answer; press again while idle to quit |
 
+### Deliberate answers
+
+For a text-only answer that is challenged by specialized critics and an isolated Sentinel before final synthesis, run `opend-deliberate "your question"` (or `npm run deliberate -- "your question"` from a checkout). See [deliberate mode](docs/deliberate-mode.md) for routing, token budgets, provider safety, and limits.
+
 The prompt shows your mode: `❯` (accent) in ask mode, **`# ❯`** (red) in bypass — the `#` is the classic root-shell marker, a reminder that bypass auto-approves things that can bite.
 
 ### Permission modes and the execution boundary
