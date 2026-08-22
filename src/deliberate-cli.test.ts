@@ -8,6 +8,45 @@ import { loadDeliberateRc, runDeliberateCli } from './deliberate-cli.js';
 const script = path.resolve('scripts', 'deliberate.mjs');
 
 describe('deliberate CLI configuration safety', () => {
+  it('prints help and exits successfully without constructing a provider client', async () => {
+    const stdout: string[] = [];
+    let constructed = 0;
+    const code = await runDeliberateCli(['--help'], {
+      createClient() {
+        constructed += 1;
+        throw new Error('client must not be constructed');
+      },
+      stdout: (message) => stdout.push(message),
+      stderr: () => undefined
+    });
+
+    expect(code).toBe(0);
+    expect(constructed).toBe(0);
+    expect(stdout.join('')).toContain(
+      'Usage: opend-deliberate [--auto|--quick|--full] "your question"'
+    );
+  });
+
+  it('rejects an unknown option with usage and no provider client', async () => {
+    const stderr: string[] = [];
+    let constructed = 0;
+    const code = await runDeliberateCli(['--fulll', 'Explain the fixture'], {
+      createClient() {
+        constructed += 1;
+        throw new Error('client must not be constructed');
+      },
+      stdout: () => undefined,
+      stderr: (message) => stderr.push(message)
+    });
+
+    expect(code).toBe(2);
+    expect(constructed).toBe(0);
+    expect(stderr.join('')).toContain('Unknown option: --fulll');
+    expect(stderr.join('')).toContain(
+      'Usage: opend-deliberate [--auto|--quick|--full] "your question"'
+    );
+  });
+
   it('merges project deliberate overrides without discarding home token budgets', () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-deliberate-home-'));
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-deliberate-project-'));

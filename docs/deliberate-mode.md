@@ -16,6 +16,8 @@ opend-deliberate "your question"
 
 Use `--full` to force the complete pipeline, `--quick` to force one proposal pass, or `--auto` for the conservative default. Auto routing uses the quick path only for short, colon-delimited prompts that explicitly ask for low-risk transformations such as rewriting, translating, proofreading, or formatting. A short analytical question still uses the full pipeline.
 
+Use `--help` or `-h` to print command usage. Unknown options fail with exit code 2 instead of being sent to the provider as prompt text.
+
 ## Full pipeline
 
 Full mode makes six calls with fresh context at each stage:

@@ -23,6 +23,8 @@ interface CliDependencies {
 
 class CliInputError extends Error {}
 
+const USAGE = 'Usage: opend-deliberate [--auto|--quick|--full] "your question"';
+
 function readRcFile(filePath: string): Record<string, any> {
   if (!fs.existsSync(filePath)) return {};
   try {
@@ -50,7 +52,7 @@ export function loadDeliberateRc(homeDir: string, cwd: string): Record<string, a
   return merged;
 }
 
-function parseArguments(args: string[]): { prompt: string; mode?: DeliberateMode } {
+function parseArguments(args: string[]): { prompt: string; mode?: DeliberateMode; help: boolean } {
   let mode: DeliberateMode | undefined;
   const promptParts: string[] = [];
   for (const arg of args) {
@@ -58,15 +60,19 @@ function parseArguments(args: string[]): { prompt: string; mode?: DeliberateMode
       const next = arg.slice(2) as DeliberateMode;
       if (mode && mode !== next) throw new CliInputError('Choose only one of --auto, --quick, or --full.');
       mode = next;
+    } else if (arg === '--help' || arg === '-h') {
+      return { prompt: '', mode, help: true };
+    } else if (arg.startsWith('-')) {
+      throw new CliInputError(`Unknown option: ${arg}\n${USAGE}`);
     } else {
       promptParts.push(arg);
     }
   }
   const prompt = promptParts.join(' ').trim();
   if (!prompt) {
-    throw new CliInputError('Usage: opend-deliberate [--auto|--quick|--full] "your question"');
+    throw new CliInputError(USAGE);
   }
-  return { prompt, mode };
+  return { prompt, mode, help: false };
 }
 
 /** Execute the CLI with injectable boundaries so credential ordering is testable. */
@@ -82,7 +88,11 @@ export async function runDeliberateCli(
   const createClient = dependencies.createClient ?? ((options) => new OpenAI(options));
 
   try {
-    const { prompt, mode } = parseArguments(args);
+    const { prompt, mode, help } = parseArguments(args);
+    if (help) {
+      writeOut(`${USAGE}\n`);
+      return 0;
+    }
     const rc = loadDeliberateRc(homeDir, cwd);
     const runtime = resolveDeliberateRuntime(rc, env);
     if (mode) runtime.mode = mode;
