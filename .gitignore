@@ -7,3 +7,6 @@ HANDOFF.md
 
 # Local launch/marketing drafts — not part of the shipped project
 launch/
+
+# Local project audit artifacts — not part of the shipped project
+project-teardown/
