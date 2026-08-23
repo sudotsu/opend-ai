@@ -204,7 +204,13 @@ function boundedUserContent(
   const availableForNotes = budgets.contextTokens - outputTokens - budgets.reserveTokens - fixedTokens;
   if (!sections.length) return question;
   if (availableForNotes < 16) {
-    throw new Error('The original prompt leaves no context budget for deliberate research notes.');
+    // Caller-fixable: every input here is config or the prompt itself, with no
+    // provider involvement. Raise contextTokens, lower the stage budget, or
+    // shorten the question. Cannot be caught in resolveDeliberateRuntime because
+    // the fixed cost depends on the runtime prompt.
+    throw new DeliberateConfigError(
+      'The original prompt leaves no context budget for deliberate research notes.'
+    );
   }
   return `${question}\n\nRESEARCH MATERIAL:\n${renderSections(sections, availableForNotes)}`;
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DELIBERATE_LOCAL_SENTINEL_KEY,
+  DeliberateConfigError,
   estimateTextTokens,
   resolveDeliberateRuntime,
   runDeliberate,
@@ -172,6 +173,29 @@ describe('deliberate orchestration', () => {
       riskyRewrite.client
     );
     expect(riskyRewrite.calls).toHaveLength(6);
+  });
+
+  it('reports an unusable research-note budget as a caller error, not a runtime failure', async () => {
+    const { client, calls } = fakeClient();
+    // Passes resolveDeliberateRuntime's checks, but leaves no room for research
+    // material once the prompt and system prompt are accounted for at critique time.
+    const starved = runtime({
+      budgets: {
+        contextTokens: 1200,
+        promptTokens: 160,
+        analysisTokens: 128,
+        critiqueTokens: 1000,
+        synthesisTokens: 128,
+        reserveTokens: 64
+      }
+    });
+
+    const failure = await runDeliberate('Evaluate this starved fixture', starved, client).catch((e) => e);
+    expect(failure).toBeInstanceOf(DeliberateConfigError);
+    // Specifically the research-note budget, not the internal-compaction invariant.
+    expect(failure.message).toMatch(/no context budget for deliberate research notes/i);
+    // The proposal pass carries no research sections, so it succeeds first.
+    expect(calls).toHaveLength(1);
   });
 
   it('rejects prompts over the configured prompt budget instead of silently truncating the question', async () => {
