@@ -18,14 +18,17 @@ describe('isCatastrophic', () => {
     'sudo rm -rf /',
     'rm -rf ~',
     'rm -rf "$HOME"',
-    'rm -rf ${HOME}/Downloads',
+    'rm -rf ${HOME}',
+    'rm -rf ~/',
     'rm -rf /*',
     'rm -rf ./*',
     'find / -name "*.tmp" -delete',
     'git clean -fdx',
+    'git clean --force',
     'mkfs.ext4 /dev/sda',
     'dd if=/dev/zero of=/dev/sda',
     'tee /dev/sda < payload',
+    'cp img.bin /dev/nvme0n1',
     'cat /dev/zero > /dev/sda',
     ':(){ :|:& };:',
     'format C:',
@@ -49,7 +52,23 @@ describe('isCatastrophic', () => {
     'information about format',
     'model del test',
     'tsc --noEmit',
-    'rm -rf node_modules/.cache'
+    'rm -rf node_modules/.cache',
+    // Home SUBPATHS are routine; only the home root itself is catastrophic.
+    // Prompting on these would train users to click through the root case.
+    'rm -rf ~/projects/app/node_modules',
+    'rm -rf $HOME/.cache/tmp',
+    // find is only catastrophic when rooted at / or home, not any absolute path.
+    'find /tmp/build -name "*.o" -delete',
+    'find . -name "*.log" -delete',
+    // git clean cannot delete without -f/--force; -n is a dry run.
+    'git clean -n',
+    'git clean --dry-run',
+    'git clean -n -- my-file',
+    // Reading a block device is safe; only writing to one is destructive.
+    'cat /dev/sda > /mnt/backup/disk.img',
+    'cp /dev/sdb.img ./backup',
+    'ls -l /dev/sda',
+    'lsblk | cat'
   ];
 
   it.each(shouldPass)('does not flag ordinary command: %s', (cmd) => {

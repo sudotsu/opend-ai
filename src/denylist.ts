@@ -5,12 +5,15 @@
 export const CATASTROPHIC: RegExp[] = [
   /\brm\s+(-[a-z]*\s+)*(-[a-z]*r[a-z]*f|-[a-z]*f[a-z]*r)\b.*\s(\/|~|\/\*|\.\/\*|\$HOME)\s*$/i,
   /\brm\s+-[a-z]*r[a-z]*f?\s+\/(\s|$)/i,
-  /\brm\s+(-[a-z]*\s+)*-[a-z]*r[a-z]*f?[a-z]*\s+(\$\{?HOME\}?|"(\$\{?HOME\}?|~)"|'(\$\{?HOME\}?|~)'|~)(\/|\s|$)/i,
-  /\bfind\s+(\/|~|\$\{?HOME\}?).*\s-delete\b/i,
-  /\bgit\s+clean\b.*-[a-z]*f/i,                     // git clean needs -f to delete
+  // Home ROOT only. Deeper paths (~/proj/node_modules) are routine and would
+  // train users to click through the prompt that protects the root case.
+  /\brm\s+(-[a-z]*\s+)*-[a-z]*r[a-z]*f?[a-z]*\s+["']?(\$\{?HOME\}?|~)["']?\/?\s*$/i,
+  /\bfind\s+["']?(\/|~|\$\{?HOME\}?)["']?\/?\s(?:[^|;&]*\s)?-delete\b/i,
+  /\bgit\s+clean\b[^|;&]*\s(-[a-z]*f[a-z]*|--force)(\s|$)/i,  // -f/--force is what deletes
   /\bmkfs\b/i,
   /\bdd\b.*\bof=\/dev\//i,
-  /\b(tee|cat|cp)\b.*\/dev\/(sd|nvme|hd|disk)/i,
+  /\btee\b[^|;&]*\s\/dev\/(sd|nvme|hd|disk)/i,      // tee writes to its arguments
+  /\bcp\s[^|;&]*\s\/dev\/(sd|nvme|hd|disk)\S*\s*$/i, // cp destination is the last arg
   />\s*\/dev\/(sd|nvme|hd|disk)/i,
   /:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;/,          // fork bomb
   /\bformat\b\s+[a-z]:/i,                           // Windows format C:
