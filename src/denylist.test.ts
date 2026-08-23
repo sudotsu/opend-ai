@@ -29,6 +29,25 @@ describe('isCatastrophic', () => {
     'dd if=/dev/zero of=/dev/sda',
     'tee /dev/sda < payload',
     'cp img.bin /dev/nvme0n1',
+    // Quoted $HOME still expands; quoted device paths are still operands.
+    'rm -rf "$HOME/"',
+    'find "$HOME/" -delete',
+    'tee "/dev/sda"',
+    'cp image.bin "/dev/sda"',
+    // Block devices beyond SCSI/NVMe: virtio, Xen, eMMC, device-mapper.
+    'cp img.bin /dev/vda',
+    'tee /dev/xvda < x',
+    'cp img.bin /dev/mmcblk0',
+    'tee /dev/mapper/vg-root < x',
+    'echo x > /dev/vda',
+    // git global options may precede the subcommand.
+    'git -C /repo clean -fd',
+    'git -c core.x=1 clean -f',
+    // Compound commands: a trailing operator must not hide the destructive part.
+    'cd /tmp && rm -rf $HOME',
+    'cp img.bin /dev/sda && sync',
+    'echo hi; rm -rf ~',
+    'make || rm -rf $HOME',
     'cat /dev/zero > /dev/sda',
     ':(){ :|:& };:',
     'format C:',
@@ -68,7 +87,17 @@ describe('isCatastrophic', () => {
     'cat /dev/sda > /mnt/backup/disk.img',
     'cp /dev/sdb.img ./backup',
     'ls -l /dev/sda',
-    'lsblk | cat'
+    'lsblk | cat',
+    // Quoted ~ is a literal directory name, not the home directory.
+    'rm -rf "~"',
+    "rm -rf '~'",
+    'find "~" -delete',
+    // Single quotes suppress expansion: this removes a file named $HOME.
+    "rm -rf '$HOME'",
+    // Input redirection reads from the device.
+    'tee < /dev/sda',
+    // A dangerous string mentioned inside quotes is an argument, not a command.
+    'echo "rm -rf /" >> notes.txt'
   ];
 
   it.each(shouldPass)('does not flag ordinary command: %s', (cmd) => {
