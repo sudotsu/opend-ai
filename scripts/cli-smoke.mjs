@@ -12,8 +12,20 @@ import { spawn } from 'node:child_process';
  * @return {Promise<{code: number|null, stdout: string, stderr: string}>} The process exit code and captured standard output and error.
  */
 function run(args, env = {}, timeoutMs = 15_000) {
+  return runEntry('dist/index.js', args, env, timeoutMs);
+}
+
+/**
+ * Runs an arbitrary built entrypoint with the specified arguments and environment.
+ * @param {string} entry - Path to the entrypoint script.
+ * @param {string[]} args - Arguments passed to the entrypoint.
+ * @param {Object} [env={}] - Environment variable overrides for the child process.
+ * @param {number} [timeoutMs=15000] - Maximum runtime before the child is terminated.
+ * @return {Promise<{code: number|null, stdout: string, stderr: string}>} The process exit code and captured standard output and error.
+ */
+function runEntry(entry, args, env = {}, timeoutMs = 15_000) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, ['dist/index.js', ...args], {
+    const child = spawn(process.execPath, [entry, ...args], {
       cwd: process.cwd(),
       env: { ...process.env, ...env },
       stdio: ['ignore', 'pipe', 'pipe']
@@ -36,6 +48,21 @@ function run(args, env = {}, timeoutMs = 15_000) {
     child.on('error', (error) => finish({ code: null, stdout, stderr: `${stderr}${stderr ? '\n' : ''}Failed to spawn CLI: ${error.message}` }));
     child.on('close', (code) => finish({ code, stdout, stderr }));
   });
+}
+
+/**
+ * Runs a published bin entrypoint exactly as an install would resolve it.
+ * @param {string} binName - Key from package.json "bin".
+ * @param {string[]} args - Arguments passed to the entrypoint.
+ * @param {Object} [env={}] - Environment variable overrides for the child process.
+ * @return {Promise<{code: number|null, stdout: string, stderr: string}>} The process exit code and captured output.
+ */
+async function runBin(binName, args, env = {}) {
+  const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  const target = pkg.bin?.[binName];
+  if (!target) return { code: null, stdout: '', stderr: `package.json declares no bin "${binName}"` };
+  if (!fs.existsSync(target)) return { code: null, stdout: '', stderr: `bin "${binName}" points at missing ${target}` };
+  return runEntry(target, args, env);
 }
 
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-cli-smoke-'));
@@ -65,14 +92,20 @@ try {
     ['exec', '--profile', 'unsafe-host', '--workspace', process.cwd(), 'complete the warning smoke test'],
     { HOME: home, VENICE_API_KEY: '', VENICE_BASE_URL: `http://127.0.0.1:${address.port}/v1`, VENICE_MODEL: 'mock-model' }
   );
+  const deliberateHelp = await runBin('opend-deliberate', ['--help'], clean);
+  const deliberateUnknown = await runBin('opend-deliberate', ['--nope', 'question'], clean);
   const failures = [];
   if (help.code !== 0 || !help.stdout.includes('Usage:')) failures.push('--help failed without credentials');
   if (version.code !== 0 || !/^\d+\.\d+\.\d+\s*$/.test(version.stdout)) failures.push('--version failed without credentials');
   if (missing.code !== 2) failures.push('missing exec prompt did not return exit 2');
   if (exec.code !== 0 || !exec.stdout.includes('cli mock complete')) failures.push('mock exec did not return output/exit 0');
   if (unsafe.code !== 0 || !unsafe.stderr.includes('unsafe-host is active')) failures.push('unsafe-host did not emit its persistent warning');
+  if (deliberateHelp.code !== 0 || !deliberateHelp.stdout.includes('Usage: opend-deliberate')) {
+    failures.push(`opend-deliberate --help failed: ${deliberateHelp.stderr.trim() || `exit ${deliberateHelp.code}`}`);
+  }
+  if (deliberateUnknown.code !== 2) failures.push('opend-deliberate unknown option did not return exit 2');
   if (failures.length) { console.error(failures.join('\n')); process.exitCode = 1; }
-  else console.log('CLI help/version/usage/exec smoke passed');
+  else console.log('CLI help/version/usage/exec and opend-deliberate bin smoke passed');
 } finally {
   await new Promise((resolve) => server.close(resolve));
   fs.rmSync(home, { recursive: true, force: true });

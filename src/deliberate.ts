@@ -2,6 +2,13 @@ import { resolveProviderProfile } from './provider.js';
 
 export const DELIBERATE_LOCAL_SENTINEL_KEY = 'opend-local-no-key';
 
+/**
+ * Configuration, credential, and budget failures that are the caller's to fix.
+ * Callers map these to a distinct exit code, so the type is the contract rather
+ * than the message text.
+ */
+export class DeliberateConfigError extends Error {}
+
 const DEFAULT_BASE_URL = 'https://api.venice.ai/api/v1';
 const DEFAULT_MODEL = 'olafangensan-glm-4.7-flash-heretic';
 
@@ -66,7 +73,7 @@ const REVIEWERS = [
 function positiveInt(value: unknown, fallback: number, label: string): number {
   if (value === undefined) return fallback;
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
-    throw new Error(`deliberate.${label} must be a positive integer`);
+    throw new DeliberateConfigError(`deliberate.${label} must be a positive integer`);
   }
   return value;
 }
@@ -87,7 +94,12 @@ export function resolveDeliberateRuntime(
   const contextOverride = rc.contextTokens === undefined
     ? undefined
     : positiveInt(rc.contextTokens, 0, 'contextTokens');
-  const profile = resolveProviderProfile(baseUrl, model, contextOverride);
+  let profile;
+  try {
+    profile = resolveProviderProfile(baseUrl, model, contextOverride);
+  } catch (error: any) {
+    throw new DeliberateConfigError(error?.message || String(error));
+  }
 
   const rawApiKey = env.VENICE_API_KEY || rc.apiKey;
   const configuredApiKey = typeof rawApiKey === 'string' ? rawApiKey.trim() : '';
@@ -96,20 +108,20 @@ export function resolveDeliberateRuntime(
     if (explicitEndpoint && profile.local && profile.kind !== 'venice') {
       apiKey = DELIBERATE_LOCAL_SENTINEL_KEY;
     } else if (profile.kind === 'venice') {
-      throw new Error('Set VENICE_API_KEY before using the Venice endpoint.');
+      throw new DeliberateConfigError('Set VENICE_API_KEY before using the Venice endpoint.');
     } else {
-      throw new Error('Configure a real credential before using a remote OpenAI-compatible endpoint.');
+      throw new DeliberateConfigError('Configure a real credential before using a remote OpenAI-compatible endpoint.');
     }
   }
 
   const raw = rc.deliberate;
   if (raw !== undefined && (!raw || typeof raw !== 'object' || Array.isArray(raw))) {
-    throw new Error('deliberate must be a JSON object');
+    throw new DeliberateConfigError('deliberate must be a JSON object');
   }
   const deliberate = raw || {};
   const mode = deliberate.mode ?? 'auto';
   if (mode !== 'auto' && mode !== 'quick' && mode !== 'full') {
-    throw new Error('deliberate.mode must be auto, quick, or full');
+    throw new DeliberateConfigError('deliberate.mode must be auto, quick, or full');
   }
 
   const contextTokens = profile.contextTokens;
@@ -123,11 +135,11 @@ export function resolveDeliberateRuntime(
   };
 
   if (budgets.promptTokens + budgets.analysisTokens + budgets.reserveTokens >= contextTokens) {
-    throw new Error('deliberate.promptTokens plus analysisTokens and reserveTokens must fit within contextTokens');
+    throw new DeliberateConfigError('deliberate.promptTokens plus analysisTokens and reserveTokens must fit within contextTokens');
   }
   for (const output of ['analysisTokens', 'critiqueTokens', 'synthesisTokens'] as const) {
     if (budgets[output] + budgets.reserveTokens >= contextTokens) {
-      throw new Error(`deliberate.${output} plus reserveTokens must fit within contextTokens`);
+      throw new DeliberateConfigError(`deliberate.${output} plus reserveTokens must fit within contextTokens`);
     }
   }
 
@@ -256,9 +268,9 @@ export async function runDeliberate(
   options: RunOptions = {}
 ): Promise<string> {
   const cleanPrompt = prompt.trim();
-  if (!cleanPrompt) throw new Error('A non-empty prompt is required.');
+  if (!cleanPrompt) throw new DeliberateConfigError('A non-empty prompt is required.');
   if (estimateTextTokens(cleanPrompt) > runtime.budgets.promptTokens) {
-    throw new Error(
+    throw new DeliberateConfigError(
       `Prompt exceeds the deliberate prompt budget of ${runtime.budgets.promptTokens} tokens; ` +
         'increase deliberate.promptTokens or shorten the question.'
     );
