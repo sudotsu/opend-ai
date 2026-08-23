@@ -94,6 +94,13 @@ try {
   );
   const deliberateHelp = await runBin('opend-deliberate', ['--help'], clean);
   const deliberateUnknown = await runBin('opend-deliberate', ['--nope', 'question'], clean);
+  // npm installs bins as symlinks. Invoking the target directly cannot catch an
+  // entrypoint guard that compares argv[1] to the module path without resolving
+  // symlinks, so exercise the shape an install actually produces.
+  const linkDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-bin-link-'));
+  const link = path.join(linkDir, 'opend-deliberate');
+  fs.symlinkSync(path.resolve('dist/deliberate-cli.js'), link);
+  const deliberateLinked = await runEntry(link, ['--help'], clean);
   const failures = [];
   if (help.code !== 0 || !help.stdout.includes('Usage:')) failures.push('--help failed without credentials');
   if (version.code !== 0 || !/^\d+\.\d+\.\d+\s*$/.test(version.stdout)) failures.push('--version failed without credentials');
@@ -104,6 +111,10 @@ try {
     failures.push(`opend-deliberate --help failed: ${deliberateHelp.stderr.trim() || `exit ${deliberateHelp.code}`}`);
   }
   if (deliberateUnknown.code !== 2) failures.push('opend-deliberate unknown option did not return exit 2');
+  if (deliberateLinked.code !== 0 || !deliberateLinked.stdout.includes('Usage: opend-deliberate')) {
+    failures.push('opend-deliberate produced no usage when invoked through a bin symlink');
+  }
+  fs.rmSync(linkDir, { recursive: true, force: true });
   if (failures.length) { console.error(failures.join('\n')); process.exitCode = 1; }
   else console.log('CLI help/version/usage/exec and opend-deliberate bin smoke passed');
 } finally {
