@@ -17,10 +17,43 @@ describe('isCatastrophic', () => {
     'rm -rf /',
     'sudo rm -rf /',
     'rm -rf ~',
+    'rm -rf "$HOME"',
+    'rm -rf ${HOME}',
+    'rm -rf ~/',
     'rm -rf /*',
     'rm -rf ./*',
+    'find / -name "*.tmp" -delete',
+    'git clean -fdx',
+    'git clean --force',
     'mkfs.ext4 /dev/sda',
     'dd if=/dev/zero of=/dev/sda',
+    'tee /dev/sda < payload',
+    'cp img.bin /dev/nvme0n1',
+    // Quoted $HOME still expands; quoted device paths are still operands.
+    'rm -rf "$HOME/"',
+    'find "$HOME/" -delete',
+    'tee "/dev/sda"',
+    'cp image.bin "/dev/sda"',
+    // Block devices beyond SCSI/NVMe: virtio, Xen, eMMC, device-mapper.
+    'cp img.bin /dev/vda',
+    'tee /dev/xvda < x',
+    'cp img.bin /dev/mmcblk0',
+    'tee /dev/mapper/vg-root < x',
+    'echo x > /dev/vda',
+    // `>|` overrides noclobber: a redirect, not a pipe.
+    'printf x >|/dev/sda',
+    // git global options may precede the subcommand.
+    'git -C /repo clean -fd',
+    'git -c core.x=1 clean -f',
+    // Global options whose operand is a separate token.
+    'git --git-dir /repo/x clean -f',
+    'git --work-tree /srv/app clean -fd',
+    'sudo git clean -fd',
+    // Compound commands: a trailing operator must not hide the destructive part.
+    'cd /tmp && rm -rf $HOME',
+    'cp img.bin /dev/sda && sync',
+    'echo hi; rm -rf ~',
+    'make || rm -rf $HOME',
     'cat /dev/zero > /dev/sda',
     ':(){ :|:& };:',
     'format C:',
@@ -44,7 +77,41 @@ describe('isCatastrophic', () => {
     'information about format',
     'model del test',
     'tsc --noEmit',
-    'rm -rf node_modules/.cache'
+    'rm -rf node_modules/.cache',
+    // Home SUBPATHS are routine; only the home root itself is catastrophic.
+    // Prompting on these would train users to click through the root case.
+    'rm -rf ~/projects/app/node_modules',
+    'rm -rf $HOME/.cache/tmp',
+    // find is only catastrophic when rooted at / or home, not any absolute path.
+    'find /tmp/build -name "*.o" -delete',
+    'find . -name "*.log" -delete',
+    // git clean cannot delete without -f/--force; -n is a dry run.
+    'git clean -n',
+    'git clean --dry-run',
+    'git clean -n -- my-file',
+    // -n overrides -f: git clean prints instead of deleting.
+    'git clean -nfd',
+    'git clean -f --dry-run',
+    'git clean --dry-run -f',
+    // Other git subcommands take -f/--force without deleting untracked files.
+    'git checkout -f main',
+    'git push --force origin main',
+    'printf x >|/tmp/out.txt',
+    // Reading a block device is safe; only writing to one is destructive.
+    'cat /dev/sda > /mnt/backup/disk.img',
+    'cp /dev/sdb.img ./backup',
+    'ls -l /dev/sda',
+    'lsblk | cat',
+    // Quoted ~ is a literal directory name, not the home directory.
+    'rm -rf "~"',
+    "rm -rf '~'",
+    'find "~" -delete',
+    // Single quotes suppress expansion: this removes a file named $HOME.
+    "rm -rf '$HOME'",
+    // Input redirection reads from the device.
+    'tee < /dev/sda',
+    // A dangerous string mentioned inside quotes is an argument, not a command.
+    'echo "rm -rf /" >> notes.txt'
   ];
 
   it.each(shouldPass)('does not flag ordinary command: %s', (cmd) => {
