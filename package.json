@@ -28,7 +28,8 @@
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "opend": "dist/index.js"
+    "opend": "dist/index.js",
+    "opend-deliberate": "dist/deliberate-cli.js"
   },
   "files": [
     "dist",
@@ -45,7 +46,8 @@
     "prepare": "npm run build",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "test": "vitest run",
+    "test": "npm run build && vitest run",
+    "deliberate": "npm run build --silent && node dist/deliberate-cli.js",
     "eval": "npm run build && node scripts/run-deterministic-evals.mjs",
     "eval:live": "npm run build && node scripts/run-live-evals.mjs",
     "test:cli": "npm run build && node scripts/cli-smoke.mjs",

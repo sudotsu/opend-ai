@@ -12,6 +12,16 @@
   "contextTokens": 96000,
   "_contextTokens_comment": "Sliding-window budget in estimated tokens. Oldest whole conversation rounds are trimmed once history exceeds this.",
 
+  "deliberate": {
+    "mode": "auto",
+    "promptTokens": 8192,
+    "analysisTokens": 4096,
+    "critiqueTokens": 2048,
+    "synthesisTokens": 4096,
+    "reserveTokens": 1024
+  },
+  "_deliberate_comment": "Budgets for opend-deliberate. auto uses one pass only for obvious low-risk transformations; everything else gets proposal + 3 critics + hidden Sentinel + synthesis. All values must be positive integers that fit contextTokens.",
+
   "maxRetries": 3,
   "_maxRetries_comment": "Retry attempts on transient API errors (429/5xx/network) before giving up, with exponential backoff.",
 
