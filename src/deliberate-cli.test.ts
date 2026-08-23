@@ -95,6 +95,37 @@ describe('deliberate CLI configuration safety', () => {
     }
   });
 
+  it('exits 2 for a typed configuration error whose message has no recognizable prefix', async () => {
+    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'opend-deliberate-bad-deliberate-'));
+    fs.writeFileSync(path.join(fixture, '.opendrc.json'), JSON.stringify({ deliberate: [] }));
+    const stderr: string[] = [];
+    let constructed = 0;
+
+    try {
+      const code = await runDeliberateCli(['Explain the fixture'], {
+        env: {
+          VENICE_API_KEY: 'real-key',
+          VENICE_BASE_URL: 'https://api.venice.ai/api/v1',
+          VENICE_MODEL: 'fixture-model'
+        },
+        homeDir: fixture,
+        cwd: fixture,
+        createClient() {
+          constructed += 1;
+          throw new Error('client must not be constructed');
+        },
+        stdout: () => undefined,
+        stderr: (message) => stderr.push(message)
+      });
+
+      expect(code).toBe(2);
+      expect(constructed).toBe(0);
+      expect(stderr.join('\n')).toMatch(/deliberate must be a JSON object/i);
+    } finally {
+      fs.rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
   it('validates credentials before constructing the OpenAI client', async () => {
     let constructed = 0;
     const stderr: string[] = [];

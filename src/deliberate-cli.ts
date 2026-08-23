@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
 import {
+  DeliberateConfigError,
   resolveDeliberateRuntime,
   runDeliberate,
   type DeliberateClient,
@@ -106,14 +107,9 @@ export async function runDeliberateCli(
     return 0;
   } catch (error: any) {
     writeErr(`${error?.message || String(error)}\n`);
-    if (
-      error instanceof CliInputError ||
-      /^(Set VENICE_API_KEY|Configure a real credential|deliberate\.|Prompt exceeds|Invalid provider base URL)/i.test(
-        error?.message || ''
-      )
-    ) {
-      return 2;
-    }
+    // Exit 2 means "your input or configuration is wrong"; the caller's error
+    // type carries that, so wording changes cannot silently reclassify a failure.
+    if (error instanceof CliInputError || error instanceof DeliberateConfigError) return 2;
     return 1;
   }
 }
