@@ -120,5 +120,19 @@ export async function main(): Promise<number> {
   return runDeliberateCli();
 }
 
-const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : '';
-if (invokedPath && fileURLToPath(import.meta.url) === invokedPath) process.exitCode = await main();
+// npm installs a package's bin entries as symlinks, so process.argv[1] is the
+// symlink in .../bin while import.meta.url is the real file in the package.
+// path.resolve() normalizes a path but does not follow symlinks, so comparing
+// the two directly made the installed `opend-deliberate` exit 0 in silence:
+// main() never ran. Resolve both sides to real paths before comparing.
+function isDirectInvocation(): boolean {
+  const invoked = process.argv[1];
+  if (!invoked) return false;
+  try {
+    return fs.realpathSync(path.resolve(invoked)) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false; // a path that cannot be resolved is not this module
+  }
+}
+
+if (isDirectInvocation()) process.exitCode = await main();
