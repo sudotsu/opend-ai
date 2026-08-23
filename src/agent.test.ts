@@ -374,6 +374,22 @@ describe('provider identity and recovery', () => {
     expect(results[0]).toMatch(/invalid arguments.*must not be empty/);
   });
 
+  it('detects context overflow across the error shapes providers actually throw', async () => {
+    const agent = new VeniceAgent({ apiKey: 'x' });
+    const overflow = (err: any) => (agent as any).isContextOverflow(err);
+
+    expect(overflow(new Error('This model maximum context length is 8192 tokens'))).toBe(true);
+    expect(overflow({ error: { message: 'prompt is too long for the context window' } })).toBe(true);
+    // Bare string and string-valued .error: both previously collapsed text to " "
+    // and silently reported "not an overflow".
+    expect(overflow('input tokens exceed the maximum limit')).toBe(true);
+    expect(overflow({ error: 'requested token count exceeds the context window' })).toBe(true);
+
+    expect(overflow(new Error('unauthorized'))).toBe(false);
+    expect(overflow(undefined)).toBe(false);
+    expect(overflow('connection reset by peer')).toBe(false);
+  });
+
   it('retries transient provider failures but not authentication failures', async () => {
     const agent = new VeniceAgent({ apiKey: 'x', maxRetries: 1 });
     let transientCalls = 0;
