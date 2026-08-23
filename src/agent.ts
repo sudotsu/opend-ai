@@ -372,7 +372,13 @@ export class VeniceAgent {
   }
 
   private isContextOverflow(err: any): boolean {
-    const text = `${err?.message ?? ''} ${err?.error?.message ?? ''}`.toLowerCase();
+    // Providers surface errors inconsistently: an Error, a wrapped {error:{message}},
+    // or a bare string. runRound's own `err?.message || err` already assumes the
+    // string shape, so match it here — otherwise text collapses to whitespace and
+    // the agent burns retries instead of shrinking the context budget.
+    const baseMsg = typeof err === 'string' ? err : (err?.message ?? '');
+    const nestedMsg = typeof err?.error === 'string' ? err.error : (err?.error?.message ?? '');
+    const text = `${baseMsg} ${nestedMsg}`.toLowerCase();
     // Do NOT gate on `status === 400`: overflow errors surfaced over the streaming
     // (SSE) path arrive as a plain Error with no `.status`, so the message text is
     // the only reliable signal. The phrasing test is specific enough on its own —
