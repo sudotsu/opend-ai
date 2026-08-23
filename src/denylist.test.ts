@@ -40,9 +40,15 @@ describe('isCatastrophic', () => {
     'cp img.bin /dev/mmcblk0',
     'tee /dev/mapper/vg-root < x',
     'echo x > /dev/vda',
+    // `>|` overrides noclobber: a redirect, not a pipe.
+    'printf x >|/dev/sda',
     // git global options may precede the subcommand.
     'git -C /repo clean -fd',
     'git -c core.x=1 clean -f',
+    // Global options whose operand is a separate token.
+    'git --git-dir /repo/x clean -f',
+    'git --work-tree /srv/app clean -fd',
+    'sudo git clean -fd',
     // Compound commands: a trailing operator must not hide the destructive part.
     'cd /tmp && rm -rf $HOME',
     'cp img.bin /dev/sda && sync',
@@ -83,6 +89,14 @@ describe('isCatastrophic', () => {
     'git clean -n',
     'git clean --dry-run',
     'git clean -n -- my-file',
+    // -n overrides -f: git clean prints instead of deleting.
+    'git clean -nfd',
+    'git clean -f --dry-run',
+    'git clean --dry-run -f',
+    // Other git subcommands take -f/--force without deleting untracked files.
+    'git checkout -f main',
+    'git push --force origin main',
+    'printf x >|/tmp/out.txt',
     // Reading a block device is safe; only writing to one is destructive.
     'cat /dev/sda > /mnt/backup/disk.img',
     'cp /dev/sdb.img ./backup',

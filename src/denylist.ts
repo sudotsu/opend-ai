@@ -16,10 +16,6 @@ export const CATASTROPHIC: RegExp[] = [
   // `~` here is post-normalization: it means the shell would really expand it.
   /\brm\s+(-[a-z]*\s+)*-[a-z]*r[a-z]*f?[a-z]*\s+~\/?\s*$/i,
   /\bfind\s+(\/|~)\/?\s(?:[^|;&]*\s)?-delete\b/i,
-  // Global options (-C /repo, -c k=v, --git-dir=...) may sit between git and the
-  // subcommand. -f/--force must be a whitespace-delimited flag, not the "-f"
-  // inside a hyphenated filename.
-  /\bgit\s+(?:-[cC]\s+\S+\s+|-\S+\s+)*clean\b[^|;&]*\s(-[a-z]*f[a-z]*|--force)(\s|$)/i,
   /\bmkfs\b/i,
   /\bdd\b.*\bof=\/dev\//i,
   // tee writes to its operands. Excluding "<" keeps input redirection
@@ -27,7 +23,8 @@ export const CATASTROPHIC: RegExp[] = [
   new RegExp(String.raw`\btee\b[^<]*\s${DEVICE}`, 'i'),
   // cp's destination is its final operand; a device anywhere else is a source.
   new RegExp(String.raw`\bcp\s.*\s${DEVICE}\S*\s*$`, 'i'),
-  new RegExp(String.raw`>\s*${DEVICE}`, 'i'),
+  // `>|` is bash's noclobber override; it is a redirect, not a pipe.
+  new RegExp(String.raw`>\|?\s*${DEVICE}`, 'i'),
   /:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;/,          // fork bomb
   /\bformat\b\s+[a-z]:/i,                           // Windows format C:
   /\bdel\b.*\/[sqf]/i,                              // Windows recursive/force delete
@@ -71,6 +68,9 @@ export function normalizeSegments(command: string): string[] {
 
     if (ch === '"' || ch === "'") { quote = ch; quoted = ''; continue; }
 
+    // `>|` overrides noclobber: the bar belongs to the redirect, not to a pipe.
+    if (ch === '|' && current.endsWith('>')) { current += ch; continue; }
+
     if (ch === ';' || ch === '\n' || ch === '|' || ch === '&') {
       if ((ch === '|' || ch === '&') && command[i + 1] === ch) i++;
       segments.push(current);
@@ -90,6 +90,52 @@ export function normalizeSegments(command: string): string[] {
   segments.push(current);
   return segments.filter((segment) => segment.trim().length > 0);
 }
+
+// Git global options that take their operand as a separate token.
+const GIT_OPTIONS_WITH_OPERAND = new Set([
+  '-C', '-c', '--git-dir', '--work-tree', '--namespace', '--config-env', '--super-prefix'
+]);
+
+// `git clean` removes untracked files only when a force flag is present AND no
+// dry-run flag overrides it — `-nfd` prints what it would delete rather than
+// deleting. Options may also carry their operand as a separate token
+// (`--git-dir /repo clean -f`).
+//
+// This is tokenized rather than pattern-matched because the regex it replaces
+// got both wrong, and matched `\bgit\s+` against the "git" inside the path
+// /repo/.git — treating a path fragment as the command.
+export function isForcedGitClean(segment: string): boolean {
+  const tokens = segment.trim().split(/\s+/).filter(Boolean);
+  let i = tokens.indexOf('git');
+  if (i === -1) return false;
+
+  for (i++; i < tokens.length && tokens[i] !== 'clean'; ) {
+    const token = tokens[i];
+    if (GIT_OPTIONS_WITH_OPERAND.has(token)) { i += 2; continue; }
+    if (token.startsWith('-')) { i += 1; continue; }
+    return false; // a bare word before `clean` means this is another subcommand
+  }
+  if (tokens[i] !== 'clean') return false;
+
+  let force = false;
+  let dryRun = false;
+  for (i++; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token === '--') break; // everything after this is a pathspec
+    if (token === '--force') { force = true; continue; }
+    if (token === '--dry-run') { dryRun = true; continue; }
+    if (token.startsWith('--')) continue;
+    if (/^-[a-z]+$/i.test(token)) {
+      if (token.includes('f')) force = true;
+      if (token.includes('n')) dryRun = true;
+    }
+  }
+  return force && !dryRun;
+}
+
+// Checks that need real tokens rather than a pattern. Unlike CATASTROPHIC these
+// run only against normalized segments, where quoting has already been resolved.
+const SEGMENT_CHECKS: Array<(segment: string) => boolean> = [isForcedGitClean];
 
 // Compiles user-supplied config strings (from `extraDenylist`) into RegExps.
 // Invalid patterns are skipped with a console warning rather than crashing startup.
@@ -114,9 +160,11 @@ export function isCatastrophic(
   const command = String(args.command);
   // The raw line is still checked alongside the segments: some patterns (the
   // fork bomb) are defined in terms of the very operators segmentation splits on.
-  const candidates = [command, ...normalizeSegments(command)];
-  return candidates.some(
+  const segments = normalizeSegments(command);
+  const candidates = [command, ...segments];
+  const matched = candidates.some(
     (candidate) =>
       CATASTROPHIC.some((re) => re.test(candidate)) || extra.some((re) => re.test(candidate))
   );
+  return matched || segments.some((segment) => SEGMENT_CHECKS.some((check) => check(segment)));
 }
