@@ -172,14 +172,14 @@ command execution currently requires Linux/WSL Bubblewrap, while native Windows 
 closed unless `--profile unsafe-host` is explicitly selected.
 
 ```bash
-npm install -g opend-cli
+npm install -g @sudotsu/opend-ai
 opend
 ```
 
 To try it without keeping a global installation:
 
 ```bash
-npx opend-cli
+npx @sudotsu/opend-ai
 ```
 
 Set your key once (any one of these works from anywhere):
