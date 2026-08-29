@@ -172,23 +172,14 @@ command execution currently requires Linux/WSL Bubblewrap, while native Windows 
 closed unless `--profile unsafe-host` is explicitly selected.
 
 ```bash
-git clone https://github.com/sudotsu/opend-ai && cd opend-ai
-npm install          # installs deps and builds dist/ automatically
-cp .env.example .env
-# edit .env and add your key
-npm start
+npm install -g opend-ai
+opend
 ```
 
-### Install globally (run `opend` from anywhere)
-
-**Linux / WSL:**
+To try it without keeping a global installation:
 
 ```bash
-git clone https://github.com/sudotsu/opend-ai && cd opend-ai
-npm install          # builds dist/ via the prepare script automatically
-npm install -g .     # or: npm link   (symlink, handy while hacking on it)
-
-opend                # now works from any directory
+npx opend-ai
 ```
 
 Set your key once (any one of these works from anywhere):
@@ -203,25 +194,38 @@ export VENICE_API_KEY=your_key   # add to ~/.zshrc or ~/.bashrc to persist
 Key precedence: exported env var, then `./.env`, then `~/.opend/.env`, then
 `apiKey` in `~/.opendrc.json`.
 
+> **Termux note:** install its `nodejs-lts` package first. Bubblewrap is not
+> available in a standard Termux environment, so shell commands require the explicit
+> `opend --profile unsafe-host` option. That profile has no OS-level containment;
+> approval prompts and workspace path checks still apply.
+
 > **WSL note:** a global install inside WSL puts `opend` on the WSL PATH, not Windows.
 > Run it from your WSL shell, or install separately on native Windows.
 
-**PowerShell / native Windows:**
+### Install from source
 
-```powershell
-git clone https://github.com/sudotsu/opend-ai; cd opend-ai
-npm install
-npm install -g .     # npm creates an opend.cmd shim on your PATH
-
-opend                # works in PowerShell / cmd from anywhere
+```bash
+git clone https://github.com/sudotsu/opend-ai && cd opend-ai
+npm install          # installs dependencies and builds dist automatically
+npm start
 ```
+
+For a global command linked to your checkout while developing:
+
+```bash
+npm install -g .     # or: npm link
+```
+
+On native Windows, npm creates `opend.cmd` on your PATH. You can persist a key
+from PowerShell with:
 
 ```powershell
 setx VENICE_API_KEY "your_key"      # persists across shells
 $env:VENICE_API_KEY = "your_key"    # just this session
 ```
 
-**npx (once published to npm):** `npx opend-ai`
+Maintainers: see [Publishing to npm](docs/publishing.md) for the first release and
+the automated release workflow.
 
 ### Using a different provider
 

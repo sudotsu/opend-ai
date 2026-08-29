@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-08-29
+- Prepare public npm distribution with guarded publishes, `npm install -g opend-ai`, and `npx opend-ai`
+
 ## 2026-07-12
 - Add workspace-scoped file policy and fail-closed Bubblewrap command isolation
 - Add provider profiles, local no-key onboarding, exact provider identity, and context-overflow recovery

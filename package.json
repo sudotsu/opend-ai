@@ -1,6 +1,6 @@
 {
   "name": "opend-ai",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "An uncensored, local-first CLI coding agent — streams live reasoning, edits files, runs commands. Provider-agnostic, runs on any OpenAI-compatible uncensored LLM.",
   "keywords": [
     "cli",
@@ -29,7 +29,11 @@
   "type": "module",
   "bin": {
     "opend": "dist/index.js",
+    "opend-ai": "dist/index.js",
     "opend-deliberate": "dist/deliberate-cli.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "files": [
     "dist",
@@ -51,7 +55,8 @@
     "eval": "npm run build && node scripts/run-deterministic-evals.mjs",
     "eval:live": "npm run build && node scripts/run-live-evals.mjs",
     "test:cli": "npm run build && node scripts/cli-smoke.mjs",
-    "check:release": "node scripts/check-release-facts.mjs"
+    "check:release": "node scripts/check-release-facts.mjs",
+    "prepublishOnly": "npm test && npm run test:cli && npm run check:release"
   },
   "dependencies": {
     "chalk": "^5.3.0",
