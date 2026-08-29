@@ -1,7 +1,8 @@
 # Changelog
 
 ## 2026-08-29
-- Prepare public npm distribution with guarded publishes, `npm install -g opend-ai`, and `npx opend-ai`
+- Prepare public npm distribution as `opend-cli`, with guarded publishes, `npm install -g opend-cli`, and `npx opend-cli`
+- Keep the product and repository branded `opend-ai`; npm rejected that unscoped package name as too similar to `openai`
 
 ## 2026-07-12
 - Add workspace-scoped file policy and fail-closed Bubblewrap command isolation

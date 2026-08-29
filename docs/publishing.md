@@ -1,8 +1,8 @@
 # Publishing to npm
 
-The first successful publication of `opend-ai` assigns that unscoped package name
+The first successful publication of `opend-cli` assigns that unscoped package name
 to the publishing npm account. There is no separate name-reservation step. A 404
-from `npm view opend-ai` means no public package is currently visible under that
+from `npm view opend-cli` means no public package is currently visible under that
 name, but the name is not secured until `npm publish` succeeds.
 
 Publishing is intentionally a two-stage setup: one authenticated first publish,
@@ -30,7 +30,7 @@ then token-free releases from GitHub Actions.
    This runs the tests and release checks through `prepublishOnly`. Confirm that
    the file list contains `dist/`, documentation, and examples, but no `.env`,
    credentials, local sessions, or development artifacts.
-5. Publish version `0.2.1`:
+5. Publish version `0.2.2`:
 
    ```bash
    npm publish
@@ -41,8 +41,8 @@ then token-free releases from GitHub Actions.
 6. Verify the public package from a clean directory:
 
    ```bash
-   npm view opend-ai name version dist-tags
-   npx opend-ai --version
+   npm view opend-cli name version dist-tags
+   npx opend-cli --version
    ```
 
 ## Enable trusted publishing

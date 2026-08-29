@@ -1,6 +1,6 @@
 {
-  "name": "opend-ai",
-  "version": "0.2.1",
+  "name": "opend-cli",
+  "version": "0.2.2",
   "description": "An uncensored, local-first CLI coding agent — streams live reasoning, edits files, runs commands. Provider-agnostic, runs on any OpenAI-compatible uncensored LLM.",
   "keywords": [
     "cli",
@@ -29,7 +29,7 @@
   "type": "module",
   "bin": {
     "opend": "dist/index.js",
-    "opend-ai": "dist/index.js",
+    "opend-cli": "dist/index.js",
     "opend-deliberate": "dist/deliberate-cli.js"
   },
   "publishConfig": {
