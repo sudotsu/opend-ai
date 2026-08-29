@@ -145,6 +145,12 @@ export function mergeConfig(
   const envPosture = env.VENICE_POSTURE as Posture | undefined;
   if (envPosture === 'coding' || envPosture === 'raw') merged.posture = envPosture;
 
+  merged.veniceParams.includeVeniceSystemPrompt = sanitizeBool(
+    merged.veniceParams.includeVeniceSystemPrompt,
+    DEFAULTS.veniceParams.includeVeniceSystemPrompt,
+    'veniceParams.includeVeniceSystemPrompt'
+  );
+
   // `veniceProfile` is the explicit A/B switch for comparing opend's prompt-only
   // behavior with Venice's native prompt stack. If no profile is explicitly set,
   // infer it from the legacy low-level flag so existing configs keep their exact

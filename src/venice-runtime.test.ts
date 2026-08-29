@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { APIConnectionTimeoutError, APIUserAbortError } from 'openai';
 import { VeniceAgent } from './agent.js';
 import { mergeConfig } from './config.js';
 
@@ -125,6 +126,59 @@ describe('Venice GLM runtime behavior', () => {
     expect(catalogCalls).toBe(0);
     expect((agent as any).contextTokens).toBe(123456);
   });
+
+  it('bounds metadata lookup and falls back to inference on timeout', async () => {
+    const notices: string[] = [];
+    const controller = new AbortController();
+    const agent = new VeniceAgent({
+      apiKey: 'test',
+      model: HERETIC,
+      contextTokensConfigured: false,
+      onNotice: (message) => notices.push(message)
+    });
+    let requestOptions: any;
+    (agent as any).client.models.list = async (options: any) => {
+      requestOptions = options;
+      throw new APIConnectionTimeoutError();
+    };
+    (agent as any).runRound = async () => {
+      (agent as any).roundReasoningContent = '';
+      return { content: 'fallback worked', assembledToolCalls: [], aborted: false };
+    };
+
+    await expect(agent.chat('hello', controller.signal)).resolves.toBe('fallback worked');
+
+    expect(requestOptions).toMatchObject({ timeout: 5_000, signal: controller.signal });
+    expect(notices.some((message) => message.includes('could not resolve Venice model context'))).toBe(
+      true
+    );
+  });
+
+  it('returns an empty result when the caller aborts metadata lookup', async () => {
+    const controller = new AbortController();
+    const agent = new VeniceAgent({
+      apiKey: 'test',
+      model: HERETIC,
+      contextTokensConfigured: false
+    });
+    let requestOptions: any;
+    let ranRound = false;
+    (agent as any).client.models.list = async (options: any) => {
+      requestOptions = options;
+      throw new APIUserAbortError();
+    };
+    (agent as any).runRound = async () => {
+      ranRound = true;
+      return { content: 'unexpected', assembledToolCalls: [], aborted: false };
+    };
+    controller.abort();
+
+    await expect(agent.chat('hello', controller.signal)).resolves.toBe('');
+
+    expect(requestOptions).toMatchObject({ timeout: 5_000, signal: controller.signal });
+    expect(ranRound).toBe(false);
+    expect(agent.getHistory()).toHaveLength(1);
+  });
 });
 
 describe('Venice system-prompt A/B profile', () => {
@@ -148,6 +202,35 @@ describe('Venice system-prompt A/B profile', () => {
     );
     expect(config.veniceProfile).toBe('venice');
     expect(config.veniceParams.includeVeniceSystemPrompt).toBe(true);
+  });
+
+  it('sanitizes a string legacy prompt flag before deriving and sending the profile', async () => {
+    const warning = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const config = mergeConfig(
+        {},
+        { veniceParams: { includeVeniceSystemPrompt: 'false' } },
+        {}
+      );
+      expect(config.veniceProfile).toBe('opend');
+      expect(config.veniceParams.includeVeniceSystemPrompt).toBe(false);
+
+      const agent = new VeniceAgent(config);
+      let requestBody: any;
+      (agent as any).client.chat.completions.create = async (body: any) => {
+        requestBody = body;
+        return asyncStream([]);
+      };
+      await (agent as any).streamOnce();
+
+      expect(requestBody.venice_parameters.include_venice_system_prompt).toBe(false);
+      expect(typeof requestBody.venice_parameters.include_venice_system_prompt).toBe('boolean');
+      expect(warning).toHaveBeenCalledWith(
+        expect.stringContaining('invalid veniceParams.includeVeniceSystemPrompt')
+      );
+    } finally {
+      warning.mockRestore();
+    }
   });
 
   it('lets VENICE_PROFILE override the file profile for clean A/B runs', () => {

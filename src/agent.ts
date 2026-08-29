@@ -22,6 +22,7 @@ export type Summarizer = (
 ) => Promise<SummarizeResult>;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const VENICE_MODEL_METADATA_TIMEOUT_MS = 5_000;
 
 const TOOLS = [
   {
@@ -280,7 +281,10 @@ export class VeniceAgent {
     this.modelLimitsResolved = true;
 
     try {
-      const page: any = await (this.client.models as any).list(signal ? { signal } : undefined);
+      const page: any = await (this.client.models as any).list({
+        timeout: VENICE_MODEL_METADATA_TIMEOUT_MS,
+        ...(signal ? { signal } : {})
+      });
       const entry = page?.data?.find((candidate: any) => candidate?.id === this.model);
       const discovered = Number(entry?.model_spec?.availableContextTokens);
       if (!Number.isInteger(discovered) || discovered < 1024) {

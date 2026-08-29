@@ -7,6 +7,15 @@ describe('provider profiles', () => {
     expect(resolveProviderProfile('https://venice.ai.attacker.example/v1', 'm').kind).toBe('openai-compatible');
   });
 
+  it('rejects plaintext HTTP for Venice endpoints', () => {
+    expect(() => resolveProviderProfile('http://api.venice.ai/api/v1', 'm')).toThrow(
+      /Venice.*HTTPS is required/
+    );
+    expect(() => resolveProviderProfile('http://api.venice.ai./api/v1', 'm')).toThrow(
+      /Venice.*HTTPS is required/
+    );
+  });
+
   it('allows local Ollama without a key and omits unsupported usage options', () => {
     const profile = resolveProviderProfile('http://127.0.0.1:11434/v1', 'llama3');
     expect(profile.kind).toBe('ollama');
