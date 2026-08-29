@@ -7,7 +7,7 @@
 // undercounting CJK/emoji/non-English text the way characters/4 does. Provider
 // profiles still own the actual context ceiling and overflow recovery remains the
 /**
- * Estimates the token count of a message using its UTF-8 content, tool calls, and name.
+ * Estimates the token count of a message using its UTF-8 content, preserved reasoning, tool calls, and name.
  *
  * @param msg - The message whose token usage is estimated
  * @returns A conservative estimated token count
@@ -15,6 +15,13 @@
 export function estTokens(msg: any): number {
   let bytes = 0;
   if (typeof msg?.content === 'string') bytes += Buffer.byteLength(msg.content, 'utf8');
+  // Reasoning models such as GLM replay `reasoning_content` on later tool rounds.
+  // Once preserved in history it consumes the same context budget as visible text;
+  // ignoring it here would make pruning systematically underestimate long agentic
+  // turns and could overflow the provider despite a nominally-safe window.
+  if (typeof msg?.reasoning_content === 'string') {
+    bytes += Buffer.byteLength(msg.reasoning_content, 'utf8');
+  }
   if (msg?.tool_calls) bytes += Buffer.byteLength(JSON.stringify(msg.tool_calls), 'utf8');
   if (msg?.name) bytes += Buffer.byteLength(String(msg.name), 'utf8');
   return Math.ceil(bytes / 4) + 6;
@@ -23,14 +30,14 @@ export function estTokens(msg: any): number {
 // Sliding-window split. Same boundary/budget logic as pruneHistory, but returns
 // BOTH the kept window and the evicted older rounds, so callers can do something
 // with the evicted content (e.g. summarize it) rather than silently dropping it.
-// Never cuts mid-round, so a `tool` message is never orphaned from its tool_calls.
-// Always keeps at least the current (newest) round, even if it alone exceeds budget.
-// Returns new arrays; does not mutate the input.
+// Never cuts mid-round, so a `tool` message is never orphaned from the assistant
+// `tool_calls` it answers. Always keeps at least the current (newest) round, even
+// if it alone exceeds budget. Returns new arrays; does not mutate the input.
 export function splitForPrune(
   messages: any[],
   budget: number
 ): { kept: any[]; evicted: any[] } {
-  if (messages.length <= 1) return { kept: messages, evicted: [] };
+  if (messages.length <= 1) return { kept: messages.slice(), evicted: [] };
   // Pin a leading system message out of the prunable window, but only if one is
   // actually present. A malformed/normalized-away history that doesn't start with
   // a system message must not have its first real message mistaken for (and pinned
@@ -43,7 +50,7 @@ export function splitForPrune(
   rest.forEach((m, i) => {
     if (m.role === 'user') boundaries.push(i);
   });
-  if (boundaries.length <= 1) return { kept: messages, evicted: [] }; // only the current round
+  if (boundaries.length <= 1) return { kept: messages.slice(), evicted: [] }; // only the current round
 
   const currentRoundStart = boundaries[boundaries.length - 1];
   let acc = system ? estTokens(system) : 0;
@@ -58,7 +65,7 @@ export function splitForPrune(
     keepFrom = boundaries[b];
   }
 
-  if (keepFrom === 0) return { kept: messages, evicted: [] };
+  if (keepFrom === 0) return { kept: messages.slice(), evicted: [] };
   const kept = system ? [system, ...rest.slice(keepFrom)] : rest.slice(keepFrom);
   return { kept, evicted: rest.slice(0, keepFrom) };
 }

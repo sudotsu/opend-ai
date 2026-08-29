@@ -57,12 +57,17 @@ export function resolveProviderProfile(
   contextOverride?: number
 ): ProviderProfile {
   const url = parsedUrl(baseUrl);
-  const host = url.hostname.toLowerCase();
+  const host = url.hostname.toLowerCase().replace(/\.$/, '');
   const venice = host === 'venice.ai' || host.endsWith('.venice.ai');
   const local = isLocalHost(host);
   const ollama = local && (url.port === '11434' || /ollama/i.test(model));
 
   if (venice) {
+    if (url.protocol !== 'https:') {
+      throw new Error(
+        `Invalid Venice provider base URL ${JSON.stringify(baseUrl)}: HTTPS is required`
+      );
+    }
     return {
       kind: 'venice',
       label: 'Venice',

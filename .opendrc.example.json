@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy this file to ~/.opendrc.json (applies everywhere) or ./.opendrc.json in a project (overrides the home config there). Legacy .veniceagentrc.json files are read only as a migration fallback. VENICE_API_KEY/VENICE_MODEL/VENICE_POSTURE env vars always win.",
+  "_comment": "Copy this file to ~/.opendrc.json (applies everywhere) or ./.opendrc.json in a project (overrides the home config there). Legacy .veniceagentrc.json files are read only as a migration fallback. VENICE_API_KEY/VENICE_MODEL/VENICE_POSTURE/VENICE_PROFILE env vars always win.",
 
   "model": "olafangensan-glm-4.7-flash-heretic",
 
@@ -9,8 +9,11 @@
   "posture": "coding",
   "_posture_options": ["coding", "raw"],
 
-  "contextTokens": 96000,
-  "_contextTokens_comment": "Sliding-window budget in estimated tokens. Oldest whole conversation rounds are trimmed once history exceeds this.",
+  "veniceProfile": "opend",
+  "_veniceProfile_options": ["opend", "venice"],
+  "_veniceProfile_comment": "A/B switch for Venice-hosted models. opend uses only opend's system prompt (current/default behavior). venice also includes Venice's optimized system prompt. VENICE_PROFILE overrides this for clean side-by-side runs.",
+
+  "_contextTokens_comment": "Omit contextTokens to resolve Venice's current model-specific context window from /models at runtime (recommended). Set a positive integer only when you intentionally want a smaller/manual sliding-window budget.",
 
   "deliberate": {
     "mode": "auto",
@@ -65,5 +68,5 @@
     "stripThinkingResponse": false,
     "includeVeniceSystemPrompt": false
   },
-  "_veniceParams_comment": "Venice-only request options (ignored on non-Venice endpoints). disableThinking:false is what makes the model emit its reasoning; stripThinkingResponse:false keeps that reasoning in the response so the CLI can render the dimmed 'thinking>' panel. Set disableThinking:true to turn reasoning off. includeVeniceSystemPrompt:false uses opend's own system prompt instead of Venice's."
+  "_veniceParams_comment": "Venice-only request options (ignored on non-Venice endpoints). disableThinking:false makes the model emit reasoning and stripThinkingResponse:false lets opend preserve/render it. includeVeniceSystemPrompt is kept for backward compatibility; when veniceProfile is explicitly set, the profile controls that flag."
 }

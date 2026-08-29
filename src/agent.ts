@@ -22,6 +22,7 @@ export type Summarizer = (
 ) => Promise<SummarizeResult>;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const VENICE_MODEL_METADATA_TIMEOUT_MS = 5_000;
 
 const TOOLS = [
   {
@@ -159,6 +160,8 @@ export class VeniceAgent {
   private model: string;
   private posture: Posture;
   private contextTokens: number;
+  private contextTokensConfigured: boolean;
+  private modelLimitsResolved = false;
   private maxRetries: number;
   private pricing: { in: number; out: number };
   private temperature?: number;
@@ -171,6 +174,7 @@ export class VeniceAgent {
   private messages: any[] = [];
   private summary = ''; // rolling condensed memory of rounds evicted from the window
   private usage = { promptTokens: 0, completionTokens: 0 };
+  private roundReasoningContent = '';
   private onThinking?: (text: string) => void;
   private onContent?: (text: string) => void;
   private onToolStart?: (name: string, args: any) => void;
@@ -178,12 +182,19 @@ export class VeniceAgent {
   private onConfirm?: (name: string, args: any) => Promise<boolean>;
   private onNotice?: (message: string) => void;
   private toolPolicy: ToolPolicy;
+  private baseToolOutputChars: number;
   private onBeforeFileMutation?: (path: string) => void;
 
   constructor(config: AgentConfig) {
     const baseURL = config.baseUrl || 'https://api.venice.ai/api/v1';
     this.model = config.model || 'olafangensan-glm-4.7-flash-heretic';
-    const contextOverride = config.contextTokensConfigured === false ? undefined : config.contextTokens;
+    // CLI config passes contextTokensConfigured:false for provider defaults. Direct
+    // embedders that pass a contextTokens value without the marker retain the old
+    // behavior: that value is treated as an explicit override and is never replaced.
+    this.contextTokensConfigured =
+      config.contextTokensConfigured === true ||
+      (config.contextTokensConfigured !== false && config.contextTokens !== undefined);
+    const contextOverride = this.contextTokensConfigured ? config.contextTokens : undefined;
     this.provider = resolveProviderProfile(baseURL, this.model, contextOverride);
     this.client = new OpenAI({ apiKey: config.apiKey || 'opend-local-no-key', baseURL: this.provider.baseUrl });
     this.posture = config.posture || 'coding';
@@ -226,16 +237,11 @@ export class VeniceAgent {
     this.onConfirm = config.onConfirm;
     this.onNotice = config.onNotice;
     this.toolPolicy = config.toolPolicy ?? createToolPolicy({ timeoutMs: this.commandTimeoutMs });
-    // A single tool result lands in the CURRENT round, which splitForPrune can
-    // never evict — so one oversized run_command/read_file can overflow the model
-    // on its own, no matter how good the history pruning is. Clamp the policy's
-    // per-call output cap to a safe slice of the resolved context budget so that
-    // can't happen. min() so an explicitly-configured smaller cap still wins.
-    const derivedCap = this.toolOutputCap(this.contextTokens);
-    this.toolPolicy = {
-      ...this.toolPolicy,
-      maxOutputChars: Math.min(this.toolPolicy.maxOutputChars ?? derivedCap, derivedCap)
-    };
+    // Preserve the policy's original ceiling so a provider-discovered larger
+    // context can raise the derived cap without overriding an explicitly smaller
+    // caller cap.
+    this.baseToolOutputChars = this.toolPolicy.maxOutputChars ?? 1_000_000;
+    this.resizeToolOutputCap();
     this.onBeforeFileMutation = config.onBeforeFileMutation;
 
     this.messages.push({ role: 'system', content: this.systemPrompt() });
@@ -255,6 +261,56 @@ export class VeniceAgent {
     // usable rather than starving every tool of output.
     const FLOOR = 16_000;
     return Math.max(FLOOR, Math.floor(contextTokens));
+  }
+
+  private resizeToolOutputCap(): void {
+    const derivedCap = this.toolOutputCap(this.contextTokens);
+    this.toolPolicy = {
+      ...this.toolPolicy,
+      maxOutputChars: Math.min(this.baseToolOutputChars, derivedCap)
+    };
+  }
+
+  // Venice publishes model-specific context limits from /models. Resolve that
+  // metadata once, before the first turn, instead of permanently treating the
+  // conservative provider fallback as the real window. Explicit user overrides
+  // always win. A catalog failure degrades to the existing fallback and never
+  // blocks inference.
+  private async resolveVeniceContext(signal?: AbortSignal): Promise<void> {
+    if (this.modelLimitsResolved || this.contextTokensConfigured || this.provider.kind !== 'venice') return;
+    this.modelLimitsResolved = true;
+
+    try {
+      const page: any = await (this.client.models as any).list({
+        timeout: VENICE_MODEL_METADATA_TIMEOUT_MS,
+        ...(signal ? { signal } : {})
+      });
+      const entry = page?.data?.find((candidate: any) => candidate?.id === this.model);
+      const discovered = Number(entry?.model_spec?.availableContextTokens);
+      if (!Number.isInteger(discovered) || discovered < 1024) {
+        this.onNotice?.(`Venice model metadata did not include a usable context limit for ${this.model}; keeping ${this.contextTokens} tokens`);
+        return;
+      }
+
+      if (discovered !== this.contextTokens) {
+        const previous = this.contextTokens;
+        this.contextTokens = discovered;
+        this.provider = { ...this.provider, contextTokens: discovered };
+        this.resizeToolOutputCap();
+        this.onNotice?.(
+          `Venice reports ${this.model} context window as ${discovered} tokens ` +
+            `(fallback was ${previous}); using provider metadata`
+        );
+      }
+    } catch (err: any) {
+      if (this.isAbort(err)) {
+        this.modelLimitsResolved = false;
+        throw err;
+      }
+      this.onNotice?.(
+        `could not resolve Venice model context (${err?.message || err}); keeping ${this.contextTokens}-token fallback`
+      );
+    }
   }
 
   // Enforce the per-result cap on EVERY tool output at the single dispatch choke
@@ -458,6 +514,7 @@ export class VeniceAgent {
 
     let content = '';
     let aborted = false;
+    this.roundReasoningContent = '';
     const thinkState = { inThink: false, pending: '' };
     // Tool calls stream as fragments keyed by `index`; reassemble before use.
     const toolCallsAcc: { id: string; name: string; args: string }[] = [];
@@ -477,8 +534,11 @@ export class VeniceAgent {
       if (!choice) continue;
       const delta: any = choice.delta;
 
-      // Primary reasoning channel for Venice reasoning models.
+      // Primary reasoning channel for Venice reasoning models. Keep the exact
+      // streamed reasoning so the assistant message can be replayed unchanged on
+      // the next tool round / user turn (GLM preserved-thinking protocol).
       if (delta?.reasoning_content) {
+        this.roundReasoningContent += delta.reasoning_content;
         this.onThinking?.(delta.reasoning_content);
       }
 
@@ -633,6 +693,13 @@ export class VeniceAgent {
   }
 
   async chat(userInput: string, signal?: AbortSignal): Promise<string> {
+    try {
+      await this.resolveVeniceContext(signal);
+    } catch (err: any) {
+      if (this.isAbort(err)) return '';
+      throw err;
+    }
+
     this.messages.push({ role: 'user', content: userInput });
 
     const MAX_ITERATIONS = this.maxIterations;
@@ -657,6 +724,8 @@ export class VeniceAgent {
             const previous = this.contextTokens;
             if (previous <= 1024) throw overflowError;
             this.contextTokens = Math.max(1024, Math.floor(previous * 0.75));
+            this.provider = { ...this.provider, contextTokens: this.contextTokens };
+            this.resizeToolOutputCap();
             this.onNotice?.(`provider rejected the context window; reducing budget from ${previous} to ${this.contextTokens} tokens and pruning again`);
             try {
               await this.applyPruneAndSummarize(signal);
@@ -674,9 +743,14 @@ export class VeniceAgent {
       }
 
       const { content, assembledToolCalls, aborted } = round;
+      const reasoningContent = this.roundReasoningContent;
 
       // Rebuild the assistant turn for history across the streaming boundary.
+      // GLM preserved-thinking requires the complete prior reasoning_content to be
+      // replayed with the assistant tool call on the next request; omitting it makes
+      // each tool round effectively reason from scratch.
       const assistantMsg: any = { role: 'assistant', content: content || null };
+      if (reasoningContent) assistantMsg.reasoning_content = reasoningContent;
       if (assembledToolCalls.length > 0) assistantMsg.tool_calls = assembledToolCalls;
       this.messages.push(assistantMsg);
 
