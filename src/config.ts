@@ -10,6 +10,8 @@ export interface Pricing {
   out: number;
 }
 
+export type VeniceProfile = 'opend' | 'venice';
+
 // Venice-only request extension (only sent when the base URL is Venice).
 // disableThinking:false + stripThinkingResponse:false is what makes the model's
 // reasoning stream back to the client at all — see agent.ts. These default to
@@ -41,6 +43,7 @@ export interface AppConfig {
   maxSummaryTokens: number;  // max_tokens for the summarizer call (bounds summary growth)
   sessionRetentionDays: number; // prune sessions older than this; 0 disables automatic retention
   autoSave: boolean;
+  veniceProfile: VeniceProfile; // opend = only our prompt; venice = prepend Venice's optimized prompt too
   veniceParams: VeniceParams;
 }
 
@@ -62,6 +65,7 @@ const DEFAULTS: Omit<AppConfig, 'apiKey' | 'temperature'> = {
   maxSummaryTokens: 1024,
   sessionRetentionDays: 30,
   autoSave: true,
+  veniceProfile: 'opend',
   veniceParams: {
     disableThinking: false,
     stripThinkingResponse: false,
@@ -140,6 +144,24 @@ export function mergeConfig(
 
   const envPosture = env.VENICE_POSTURE as Posture | undefined;
   if (envPosture === 'coding' || envPosture === 'raw') merged.posture = envPosture;
+
+  // `veniceProfile` is the explicit A/B switch for comparing opend's prompt-only
+  // behavior with Venice's native prompt stack. If no profile is explicitly set,
+  // infer it from the legacy low-level flag so existing configs keep their exact
+  // behavior. An explicit profile is authoritative over that low-level flag.
+  const profileInput = env.VENICE_PROFILE ?? fileCfg.veniceProfile;
+  if (profileInput === 'opend' || profileInput === 'venice') {
+    merged.veniceProfile = profileInput;
+    merged.veniceParams.includeVeniceSystemPrompt = profileInput === 'venice';
+  } else {
+    if (profileInput !== undefined) {
+      console.error(
+        `Warning: ignoring invalid veniceProfile (${JSON.stringify(profileInput)}); ` +
+          'must be "opend" or "venice".'
+      );
+    }
+    merged.veniceProfile = merged.veniceParams.includeVeniceSystemPrompt ? 'venice' : 'opend';
+  }
 
   // Temperature is optional: undefined must stay undefined so the request omits it
   // and the provider's own default applies. Never coerce to 0. The spread above can
