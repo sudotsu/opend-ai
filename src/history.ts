@@ -37,7 +37,7 @@ export function splitForPrune(
   messages: any[],
   budget: number
 ): { kept: any[]; evicted: any[] } {
-  if (messages.length <= 1) return { kept: messages, evicted: [] };
+  if (messages.length <= 1) return { kept: messages.slice(), evicted: [] };
   // Pin a leading system message out of the prunable window, but only if one is
   // actually present. A malformed/normalized-away history that doesn't start with
   // a system message must not have its first real message mistaken for (and pinned
@@ -50,7 +50,7 @@ export function splitForPrune(
   rest.forEach((m, i) => {
     if (m.role === 'user') boundaries.push(i);
   });
-  if (boundaries.length <= 1) return { kept: messages, evicted: [] }; // only the current round
+  if (boundaries.length <= 1) return { kept: messages.slice(), evicted: [] }; // only the current round
 
   const currentRoundStart = boundaries[boundaries.length - 1];
   let acc = system ? estTokens(system) : 0;
@@ -65,7 +65,7 @@ export function splitForPrune(
     keepFrom = boundaries[b];
   }
 
-  if (keepFrom === 0) return { kept: messages, evicted: [] };
+  if (keepFrom === 0) return { kept: messages.slice(), evicted: [] };
   const kept = system ? [system, ...rest.slice(keepFrom)] : rest.slice(keepFrom);
   return { kept, evicted: rest.slice(0, keepFrom) };
 }

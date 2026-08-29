@@ -720,6 +720,7 @@ export class VeniceAgent {
             const previous = this.contextTokens;
             if (previous <= 1024) throw overflowError;
             this.contextTokens = Math.max(1024, Math.floor(previous * 0.75));
+            this.provider = { ...this.provider, contextTokens: this.contextTokens };
             this.resizeToolOutputCap();
             this.onNotice?.(`provider rejected the context window; reducing budget from ${previous} to ${this.contextTokens} tokens and pruning again`);
             try {

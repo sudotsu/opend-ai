@@ -321,7 +321,7 @@ describe('provider identity and recovery', () => {
 
   it('reduces the provider context budget and retries once on an overflow response', async () => {
     const notices: string[] = [];
-    const agent = new VeniceAgent({ apiKey: 'x', contextTokens: 8000, summarizeOnPrune: false, onNotice: (message) => notices.push(message) });
+    const agent = new VeniceAgent({ apiKey: 'x', contextTokens: 32000, summarizeOnPrune: false, onNotice: (message) => notices.push(message) });
     let calls = 0;
     (agent as any).runRound = async () => {
       calls++;
@@ -330,6 +330,8 @@ describe('provider identity and recovery', () => {
     };
     await expect(agent.chat('hello')).resolves.toBe('recovered');
     expect(calls).toBe(2);
+    expect(agent.getProviderProfile().contextTokens).toBe(24000);
+    expect((agent as any).toolPolicy.maxOutputChars).toBe(24000);
     expect(notices.some((message) => message.includes('reducing budget'))).toBe(true);
   });
 

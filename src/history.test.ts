@@ -118,6 +118,7 @@ describe('splitForPrune', () => {
     const history = buildHistory(4);
     const { kept, evicted } = splitForPrune(history, 100000);
     expect(kept).toEqual(history);
+    expect(kept).not.toBe(history);
     expect(evicted).toEqual([]);
   });
 
@@ -147,6 +148,15 @@ describe('splitForPrune', () => {
     const history = buildHistory(1);
     const { kept, evicted } = splitForPrune(history, 1);
     expect(kept).toEqual(history);
+    expect(kept).not.toBe(history);
+    expect(evicted).toEqual([]);
+  });
+
+  it('returns a fresh kept array for a single system message', () => {
+    const history = [{ role: 'system', content: 'hi' }];
+    const { kept, evicted } = splitForPrune(history, 1);
+    expect(kept).toEqual(history);
+    expect(kept).not.toBe(history);
     expect(evicted).toEqual([]);
   });
 

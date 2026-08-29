@@ -149,7 +149,16 @@ export function mergeConfig(
   // behavior with Venice's native prompt stack. If no profile is explicitly set,
   // infer it from the legacy low-level flag so existing configs keep their exact
   // behavior. An explicit profile is authoritative over that low-level flag.
-  const profileInput = env.VENICE_PROFILE ?? fileCfg.veniceProfile;
+  const envProfile = env.VENICE_PROFILE;
+  let profileInput = fileCfg.veniceProfile;
+  if (envProfile === 'opend' || envProfile === 'venice') {
+    profileInput = envProfile;
+  } else if (envProfile !== undefined) {
+    console.error(
+      `Warning: ignoring invalid VENICE_PROFILE (${JSON.stringify(envProfile)}); ` +
+        'must be "opend" or "venice".'
+    );
+  }
   if (profileInput === 'opend' || profileInput === 'venice') {
     merged.veniceProfile = profileInput;
     merged.veniceParams.includeVeniceSystemPrompt = profileInput === 'venice';

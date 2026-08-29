@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { VeniceAgent } from './agent.js';
 import { mergeConfig } from './config.js';
 
@@ -158,5 +158,38 @@ describe('Venice system-prompt A/B profile', () => {
     );
     expect(config.veniceProfile).toBe('opend');
     expect(config.veniceParams.includeVeniceSystemPrompt).toBe(false);
+  });
+
+  it('falls back to a valid file profile when VENICE_PROFILE is invalid', () => {
+    const warning = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const config = mergeConfig(
+        {},
+        { veniceProfile: 'venice' },
+        { VENICE_PROFILE: 'invalid' }
+      );
+
+      expect(config.veniceProfile).toBe('venice');
+      expect(config.veniceParams.includeVeniceSystemPrompt).toBe(true);
+      expect(warning).toHaveBeenCalledWith(expect.stringContaining('invalid VENICE_PROFILE'));
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  it('still derives the profile from the legacy flag after an invalid environment value', () => {
+    const warning = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const config = mergeConfig(
+        {},
+        { veniceParams: { includeVeniceSystemPrompt: true } },
+        { VENICE_PROFILE: 'invalid' }
+      );
+
+      expect(config.veniceProfile).toBe('venice');
+      expect(config.veniceParams.includeVeniceSystemPrompt).toBe(true);
+    } finally {
+      warning.mockRestore();
+    }
   });
 });
