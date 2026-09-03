@@ -2,30 +2,24 @@
 
 Updated: 2026-09-03
 
-## Critical Promptfoo harness correction
+## Promptfoo harness workspace isolation — fixed
 
-Review of newest `main` commit `096c989120d5a422411c103f78745a7300b4499c` found a workspace-root mismatch in the committed Promptfoo replay harness.
+The Promptfoo replay harness workspace-root bug found after the 2026-09-03 red-team run is fixed and merged.
 
-`evals/promptfoo/agent-harness.mjs` calls:
+- PR: #20 — `Fix Promptfoo harness workspace isolation`
+- Merge commit: `f0d1a8d00848ce0d10868bc39fadc01566d0b40f`
+- The harness now passes `workspaceRoot` explicitly instead of the ignored `workspace` key.
+- The ignored top-level `workspace` option was removed from `VeniceAgent` construction.
+- Sandbox execution and network-disabled policy are explicit.
+- Harness startup fails closed if the resolved tool policy does not point at the synthetic fixture or if sandbox/network invariants drift.
+- Harness responses include resolved policy metadata for auditability.
+- Regression coverage: `evals/promptfoo/harness-policy.test.mjs`.
+- PR CI run #58 passed on Ubuntu and Windows with Node 22 and 24, including tests, build, CLI smoke checks, release checks, packaging checks, and deterministic evals on the Linux/Node 24 leg.
 
-```js
-createToolPolicy({ workspace, allowNetwork: false, timeoutMs: 5_000 })
-```
-
-but `createToolPolicy()` expects `workspaceRoot`. The unknown `workspace` property is ignored, so the policy falls back to `process.cwd()`. When launched from the repository root as documented, read/list/grep tools are scoped to the opend-ai repo, not `evals/promptfoo/fixture/`.
-
-The harness also passes an ignored top-level `workspace` property to `VeniceAgent`; `AgentConfig` has no such field.
-
-Implication: mutable/command actions were still denied by the harness, but the original run cannot be described as fixture-only workspace isolation. Model-behavior findings such as system-prompt override remain useful, while workspace/sandbox-read claims need recalibration.
-
-Detailed investigation:
+Root-cause record:
 `docs/investigations/2026-09-03-promptfoo-harness-workspace-root.md`
 
-Recommended immediate fix:
-- use `workspaceRoot: workspace` in `createToolPolicy`
-- remove ignored top-level `workspace` from `VeniceAgent`
-- assert at harness startup that the resolved policy root equals the synthetic fixture
-- rerun boundary probes that depend on workspace isolation
+The original evaluation remains historically accurate only with the documented calibration: mutable/command actions were denied, but read/list/grep tools were scoped to the repository checkout rather than the synthetic fixture. Workspace-dependent technical-boundary probes need to be rerun before claiming fixture-isolation evidence.
 
 ## Promptfoo agent-boundary red team
 
@@ -38,13 +32,15 @@ Recommended immediate fix:
   `VENICE_API_KEY`).
 - The coding and raw system prompts now state instruction hierarchy, execution-boundary,
   and denied-action invariants. Regression coverage: `src/prompts.test.ts`.
-- Important correction: do **not** currently claim the synthetic fixture was the only
-  workspace for this run; see the critical harness correction above.
+- The evaluation README/findings now explicitly distinguish model-behavior findings
+  from workspace-dependent technical claims affected by the original harness bug.
+- Next red-team step: rerun the workspace-dependent subset with the corrected harness,
+  preserve the new evaluation ID/results, then compare against the original run.
 
 ## Repository state
 
 - Working branch/source of truth: `main`
-- Latest reviewed feature commit: `096c989120d5a422411c103f78745a7300b4499c`
+- Latest merged code fix: PR #20, merge commit `f0d1a8d00848ce0d10868bc39fadc01566d0b40f`
 - Preserved-thinking / dynamic Venice context / prompt-profile work was merged in PR #18.
 - PR #18 merge commit: `7705d0330432bb8eeb84a7932f8fe2c31626001c`
 - The 2026-08-29 Venice GLM bake-off report and all six raw transcripts are in the repository.
@@ -75,9 +71,9 @@ The repository's normal full test suite took roughly 36 seconds while benchmark 
 
 ## Next recommended engineering slices
 
-### 1. Fix Promptfoo harness scope first
+### 1. Rerun corrected Promptfoo boundary probes
 
-Correct the harness workspace policy and rerun the boundary-dependent subset before treating the 2026-09-03 red-team run as a technical isolation assessment.
+Use the fixed harness to rerun the technical boundary probes that depend on workspace isolation. Preserve the new Promptfoo evaluation ID and raw results in the repository before drawing technical isolation conclusions.
 
 ### 2. Convergence/grounding controller
 
