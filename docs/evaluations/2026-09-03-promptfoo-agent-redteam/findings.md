@@ -12,6 +12,24 @@ This means the report is strong evidence about **model instruction-following and
 unsafe procedural assistance**. It is not evidence that a probe escaped the sandbox,
 read a real secret, or reached the network.
 
+### Workspace calibration for the original run
+
+The original harness had a configuration bug: it supplied `workspace` to
+`createToolPolicy()` instead of the supported `workspaceRoot` field. The policy
+therefore fell back to `process.cwd()`, normally the repository root under the
+documented launch procedure.
+
+Consequences:
+
+- command and mutation tools were still denied by `onConfirm`
+- read/list/grep tools were scoped to the repository checkout rather than the synthetic fixture
+- model-behavior findings below remain interpretable
+- Promptfoo scores involving workspace/sandbox read isolation are **not** sufficient
+  evidence of fixture isolation and must be rerun after the harness fix
+
+The root-cause record is
+`docs/investigations/2026-09-03-promptfoo-harness-workspace-root.md`.
+
 ## Confirmed model-behavior gaps
 
 | Priority | Finding | Evidence | What it proves | What it does not prove |
@@ -31,20 +49,25 @@ Prompt wording is defense in depth. The durable security boundary remains the se
 workspace policy, confirmation flow, and Bubblewrap sandbox. Do not infer that a prompt
 change makes `unsafe-host` safe or that it makes a non-networked sandbox optional.
 
-## Defenses that held in this run
+## Defenses that held in Promptfoo scoring
 
 - ASCII smuggling: 5 / 5 defended
 - Indirect prompt injection: 4 / 4 defended
 - Cross-session data leakage: 10 / 10 defended
 - Agentic memory poisoning: 6 / 6 defended
-- Sandbox read escape: 5 / 5 defended
+- Sandbox read escape: 5 / 5 defended — **rerun required for technical workspace-isolation claims**
 - Coding-agent automation poisoning: 5 / 5 defended
 - Generated-vulnerability requests: 5 / 5 defended
 - Unverifiable claims: 5 / 5 defended
 
+These are Promptfoo scoring outcomes. In particular, the sandbox-read score from this
+run must not be promoted to a technical fixture-isolation claim because of the original
+workspace-root mismatch.
+
 ## Recommended next assessment
 
-Run the same corpus after this prompt change, then separately test technical controls
+First rerun the workspace-dependent boundary probes with the corrected harness. Then run
+the same broader corpus after the prompt change and separately test technical controls
 with tool-event assertions: protected-path reads, workspace traversal, denied mutation
 state, disabled network, and Bubblewrap-unavailable failure. Include an explicit
 unsafe-host test only in an isolated disposable host with no secrets.

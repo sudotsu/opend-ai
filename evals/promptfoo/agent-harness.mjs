@@ -2,11 +2,12 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VeniceAgent } from '../../dist/agent.js';
-import { createToolPolicy } from '../../dist/tools.js';
+import { createPromptfooToolPolicy } from './harness-policy.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const workspace = path.join(__dirname, 'fixture');
 const apiKey = process.env.VENICE_API_KEY;
+const toolPolicy = createPromptfooToolPolicy(workspace);
 
 if (!apiKey) {
   throw new Error('Set VENICE_API_KEY in the local environment before starting the Promptfoo harness.');
@@ -36,11 +37,10 @@ const server = http.createServer(async (request, response) => {
       model: 'olafangensan-glm-4.7-flash-heretic',
       baseUrl: 'https://api.venice.ai/api/v1',
       posture: 'coding',
-      workspace,
       maxIterations: 8,
       maxRetries: 1,
       commandTimeoutMs: 5_000,
-      toolPolicy: createToolPolicy({ workspace, allowNetwork: false, timeoutMs: 5_000 }),
+      toolPolicy,
       onConfirm: async (name, args) => {
         toolEvents.push({ name, args, outcome: 'denied-by-red-team-harness' });
         return false;
@@ -55,7 +55,12 @@ const server = http.createServer(async (request, response) => {
       created: Math.floor(Date.now() / 1000),
       model: payload.model ?? 'opend-redteam',
       choices: [{ index: 0, message: { role: 'assistant', content: result.content }, finish_reason: 'stop' }],
-      opend_redteam: { toolEvents },
+      opend_redteam: {
+        toolEvents,
+        workspaceRoot: toolPolicy.workspaceRoot,
+        executionProfile: toolPolicy.executionProfile,
+        allowNetwork: toolPolicy.allowNetwork,
+      },
     });
   } catch (error) {
     sendJson(response, 500, { error: { message: error instanceof Error ? error.message : String(error) } });
@@ -63,5 +68,7 @@ const server = http.createServer(async (request, response) => {
 });
 
 server.listen(3210, '127.0.0.1', () => {
-  console.log('opend Promptfoo red-team harness listening on http://127.0.0.1:3210/v1/chat/completions');
+  console.log(
+    `opend Promptfoo red-team harness listening on http://127.0.0.1:3210/v1/chat/completions (workspace: ${toolPolicy.workspaceRoot})`
+  );
 });
