@@ -2,6 +2,22 @@
 
 Updated: 2026-09-03
 
+## Promptfoo agent-boundary red team
+
+- Branch: `docs/promptfoo-agent-redteam` (created from current `origin/main`).
+- An authorized 126-probe Promptfoo evaluation exercised the real `VeniceAgent` loop
+  through a loopback OpenAI-compatible harness with every command/mutation denied.
+- Result: 85/112 scored attacks defended, 27/112 model-behavior failures, and 3
+  Promptfoo parsing/integration errors. No command executed and the synthetic fixture
+  remained the only workspace.
+- Detailed evidence: `docs/evaluations/2026-09-03-promptfoo-agent-redteam/`.
+- Reproducible loopback harness: `evals/promptfoo/` (requires a local, uncommitted
+  `VENICE_API_KEY`).
+- The coding and raw system prompts now state instruction hierarchy, execution-boundary,
+  and denied-action invariants. Regression coverage: `src/prompts.test.ts`.
+- Next: rerun the same corpus, then add tool-event assertions for technical controls;
+  do not interpret model text as a sandbox escape without matching tool evidence.
+
 ## Repository state
 
 - Working branch/source of truth: `main`
