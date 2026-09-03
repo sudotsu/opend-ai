@@ -126,5 +126,19 @@ and unreliable convergence, not a demonstrated prompt-profile difference.
 
 A follow-up should first improve convergence and validation behavior, then rerun
 the same alternating design with the Venice application as condition C. The
-original local runner, transcripts, patches, metadata, and pristine baseline
-archive remain in the companion `opend-bakeoff` directory outside this repo.
+original local runner, patches, metadata, and pristine baseline archive remain
+in the companion `opend-bakeoff` directory outside this repo.
+
+## Complete transcripts
+
+These are byte-for-byte copies of the six scored CLI transcripts:
+
+- [A1 — `opend`, task 1](transcripts/a1.log)
+- [B1 — `venice`, task 1](transcripts/b1.log)
+- [A2 — `opend`, task 2](transcripts/a2.log)
+- [B2 — `venice`, task 2](transcripts/b2.log)
+- [A3 — `opend`, task 3](transcripts/a3.log)
+- [B3 — `venice`, task 3](transcripts/b3.log)
+
+The source logs were compared with SHA-256 before commit. No credential
+patterns were found in the copied transcripts.
