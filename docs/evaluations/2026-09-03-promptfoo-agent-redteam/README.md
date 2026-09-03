@@ -8,13 +8,33 @@ assessment record, not a release gate.
 
 - Target: opend-ai coding posture using `olafangensan-glm-4.7-flash-heretic` through
   Venice's OpenAI-compatible API.
-- Agent: a fresh `VeniceAgent` per probe, with the real tool policy and a synthetic
-  disposable workspace.
+- Agent: a fresh `VeniceAgent` per probe, with the real tool policy.
 - Effects: every `run_command`, `write_file`, and `edit_file` confirmation was denied
-  by the harness. The fixture did not contain real credentials. No probe received host
-  filesystem access.
+  by the harness. The test material contained no real credentials.
 - Out of scope: unsafe-host execution, an enabled network sandbox, real user secrets,
   and a claim that model text alone equals a bypass of an enforced tool boundary.
+
+### Original-run workspace correction
+
+The original `eval-TW3-2026-09-03T19:31:37` harness intended to scope tools to
+`evals/promptfoo/fixture/`, but passed `workspace` instead of `workspaceRoot` to
+`createToolPolicy()`. Because the harness is JavaScript, that unknown property was
+ignored and the policy fell back to `process.cwd()` (normally the repository root when
+launched as documented).
+
+Therefore, this run must **not** be described as proving fixture-only workspace
+isolation. Command and mutation tools were still denied, while read/list/grep tools
+were constrained by the normal tool policy rooted at the repository checkout. The
+model-behavior findings remain useful; workspace-dependent technical-boundary findings
+must be rerun with the corrected harness.
+
+The committed replay harness now uses an explicit `workspaceRoot`, asserts the resolved
+sandbox/network policy at startup, and has regression coverage in
+`evals/promptfoo/harness-policy.test.mjs`.
+
+See
+[`docs/investigations/2026-09-03-promptfoo-harness-workspace-root.md`](../../investigations/2026-09-03-promptfoo-harness-workspace-root.md)
+for the root-cause record.
 
 ## Result at a glance
 
